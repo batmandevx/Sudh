@@ -90,7 +90,7 @@ fun readiness(app: AppState): Map<Screen, Ready> {
         },
         Screen.SCATTER to Ready(true, "Ready"),
         Screen.MAGNETO to Ready(true, "Ready"),
-        Screen.MODELS to (com.shuddh.lab.core.ModelRole.entries.count { app.llm.installed(it) }).let { Ready(app.llm.hasChat() && app.llm.installed(com.shuddh.lab.core.ModelRole.TOOLS), "$it/3 models") },
+        Screen.MODELS to (com.shuddh.lab.core.ModelRole.entries.count { app.llm.installed(it) }).let { Ready(app.llm.hasChat() && app.llm.installed(com.shuddh.lab.core.ModelRole.TOOLS), "$it/4 models") },
         Screen.LENS to Ready(true, "Ready"),
         Screen.WHISTLE to if (p.has("whistle_pitch")) Ready(true, "Tuned") else Ready(true, "Ready"),
         Screen.FLOAT to Ready(true, "Ready"),
@@ -300,7 +300,7 @@ private fun LabPulse(app: AppState, ready: Map<Screen, Ready>, modifier: Modifie
 private fun PulseMetric(value: String, label: String, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(value, color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-        Text(label, color = Palette.muted, fontSize = 9.sp, maxLines = 1)
+        Text(tr(label), color = Palette.muted, fontSize = 9.sp, maxLines = 1)
     }
 }
 
@@ -310,11 +310,15 @@ private fun PulseDivider() = Box(Modifier.width(1.dp).height(24.dp).background(P
 @Composable
 private fun HomeHeader(app: AppState) {
     var menu by remember { mutableStateOf(false) }
-    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    // Re-reads the clock every minute so the greeting follows the time of day while the app stays open.
+    val hour by androidx.compose.runtime.produceState(java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
+        while (true) { value = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY); kotlinx.coroutines.delay(60_000) }
+    }
     val greet = when (hour) {
         in 5..11 -> Txt("Good morning", "सुप्रभात", "ಶುಭೋದಯ")
         in 12..16 -> Txt("Good afternoon", "नमस्ते", "ಶುಭ ಮಧ್ಯಾಹ್ನ")
-        else -> Txt("Good evening", "शुभ संध्या", "ಶುಭ ಸಂಜೆ")
+        in 17..21 -> Txt("Good evening", "शुभ संध्या", "ಶುಭ ಸಂಜೆ")
+        else -> Txt("Good night", "शुभ रात्रि", "ಶುಭ ರಾತ್ರಿ", "శుభ రాత్రి", "இனிய இரவு")
     }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.enter(0)) {
         LogoMark(40.dp)
@@ -390,7 +394,7 @@ private fun HeroCard(app: AppState, modifier: Modifier) {
 private fun HeroStat(v: String, label: String, c: Color, modifier: Modifier) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         CountUp(v.toIntOrNull() ?: 0) { Text(it, color = c, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 20.sp) }
-        Text(label, color = Palette.muted, fontSize = 11.sp, maxLines = 1)
+        Text(tr(label), color = Palette.muted, fontSize = 11.sp, maxLines = 1)
     }
 }
 
@@ -435,7 +439,7 @@ private fun QuickActions(app: AppState, modifier: Modifier) {
                     contentAlignment = Alignment.Center,
                 ) { LineIcon(kind, colors[i], Modifier.size(26.dp)) }
                 Spacer(Modifier.height(6.dp))
-                Text(label, color = Palette.text, fontSize = 12.sp, maxLines = 1)
+                Text(tr(label), color = Palette.text, fontSize = 12.sp, maxLines = 1)
             }
         }
     }
@@ -492,7 +496,7 @@ private fun LineIcon(k: QI, c: Color, modifier: Modifier) {
 private fun IconSection(title: String, icons: List<AppIcon>, ready: Map<Screen, Ready>, app: AppState, modifier: Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, color = Palette.text, fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.weight(1f))
+            Text(tr(title), color = Palette.text, fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.weight(1f))
             Text("${icons.count { ready[it.screen]?.ok == true }}/${icons.size} ready", color = Palette.muted, fontSize = 12.sp)
         }
         icons.chunked(4).forEach { row ->
@@ -520,7 +524,7 @@ private fun AppIconTile(ic: AppIcon, r: Ready?, modifier: Modifier, onClick: () 
             }
         }
         Spacer(Modifier.height(6.dp))
-        Text(ic.name, color = Palette.text, fontSize = 12.sp, maxLines = 1)
+        Text(tr(ic.name), color = Palette.text, fontSize = 12.sp, maxLines = 1)
     }
 }
 
@@ -688,9 +692,12 @@ private fun DiscoverRow(app: AppState, modifier: Modifier) {
         Triple("🌾", "Grain Scan", "stones · insects · broken") to { app.go(Screen.GRAIN) },
         Triple("🌐", "Hive", "warn your neighbours") to { app.tab(Screen.COMMUNITY) },
         Triple("🚨", "Outbreak Watch", "early warning for your area") to { app.go(Screen.OUTBREAK) },
-        Triple("🩸", "Anaemia Screen", "pallor check · free Hb test") to { app.go(Screen.ANAEMIA) },
+        Triple("🩸", "Anaemia Screen", "15-second fingertip check") to { app.go(Screen.ANAEMIA) },
+        Triple("🦟", "Mosquito Radar", "dengue & malaria alert") to { app.go(Screen.MOSQUITO) },
+        Triple("🛡", "Guardian", "fall alert · offline SOS") to { app.go(Screen.GUARDIAN) },
+        Triple("👨‍👩‍👧", "Family Exposure", "what your child really drinks") to { app.go(Screen.EXPOSURE) },
     )
-    val colors = listOf(Palette.cyan, Palette.accent, Palette.amber, Palette.red, Color(0xFFA78BFA), Palette.blue, Color(0xFFF97316), Color(0xFFFDE047), Color(0xFFD9F99D), Palette.violet, Palette.red, Color(0xFFF472B6))
+    val colors = listOf(Palette.cyan, Palette.accent, Palette.amber, Palette.red, Color(0xFFA78BFA), Palette.blue, Color(0xFFF97316), Color(0xFFFDE047), Color(0xFFD9F99D), Palette.violet, Palette.red, Color(0xFFF472B6), Color(0xFFF43F5E), Palette.accent, Palette.violet)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Discover", color = Palette.text, fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
         items.chunked(2).forEachIndexed { r, row ->
@@ -704,8 +711,8 @@ private fun DiscoverRow(app: AppState, modifier: Modifier) {
                     ) {
                         Text(t.first, fontSize = 24.sp); Spacer(Modifier.width(10.dp))
                         Column {
-                            Text(t.second, color = Palette.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                            Text(t.third, color = Palette.muted, fontSize = 11.sp)
+                            Text(tr(t.second), color = Palette.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(tr(t.third), color = Palette.muted, fontSize = 11.sp)
                         }
                     }
                 }

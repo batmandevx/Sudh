@@ -282,7 +282,7 @@ fun BtnRow(content: @Composable () -> Unit) {
 }
 
 @Composable
-fun Note(text: String, color: Color = Palette.muted) = Text(text, fontSize = 13.sp, color = color, lineHeight = 18.sp)
+fun Note(text: String, color: Color = Palette.muted) = Text(tr(text), fontSize = 13.sp, color = color, lineHeight = 18.sp)
 
 @Composable
 fun Mono(text: String, color: Color = Palette.text) =
@@ -293,7 +293,7 @@ fun <T> Chips(options: List<T>, selected: T, label: (T) -> String, onSelect: (T)
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         options.forEach { o ->
             FilterChip(
-                selected = o == selected, onClick = { onSelect(o) }, label = { Text(label(o), maxLines = 1) },
+                selected = o == selected, onClick = { onSelect(o) }, label = { Text(tr(label(o)), maxLines = 1) },
                 shape = RoundedCornerShape(50),
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = Palette.accent, selectedLabelColor = Color(0xFF032016),
@@ -423,7 +423,7 @@ fun StepTracker(steps: List<Pair<String, Boolean>>) {
                     )
                 }
                 Text(
-                    (if (done) "✓ " else "${i + 1} · ") + label, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    (if (done) "✓ " else "${i + 1} · ") + tr(label), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     color = if (done || i == next) Palette.text else Palette.muted, modifier = Modifier.padding(top = 5.dp),
                 )
             }
@@ -458,7 +458,7 @@ fun HowItWorks(lines: List<String>) {
 @Composable
 fun Badge(text: String, color: Color) {
     Text(
-        text, color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        tr(text), color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
         modifier = Modifier.clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.15f)).padding(horizontal = 8.dp, vertical = 3.dp),
     )
 }

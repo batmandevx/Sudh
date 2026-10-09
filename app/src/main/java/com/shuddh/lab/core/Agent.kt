@@ -149,7 +149,7 @@ object Agent {
         "echo" to "ECHO", "coconut" to "ECHO", "watermelon" to "ECHO", "strips" to "STRIP", "strip" to "STRIP",
         "hawa" to "SCATTER", "air" to "SCATTER", "float" to "FLOAT", "lactometer" to "FLOAT",
         "magneto" to "MAGNETO", "steel" to "MAGNETO", "whistle" to "WHISTLE", "cooker" to "WHISTLE",
-        "lens" to "LENS", "boil" to "BOIL", "boiling" to "BOIL", "oil" to "OIL", "frying" to "OIL", "outbreak" to "OUTBREAK", "sick" to "OUTBREAK", "diarrhoea" to "OUTBREAK", "anaemia" to "ANAEMIA", "anemia" to "ANAEMIA", "pallor" to "ANAEMIA", "grain" to "GRAIN", "rice" to "GRAIN", "dal" to "GRAIN", "stones" to "GRAIN", "vision" to "VISION", "gesture" to "VISION", "gestures" to "VISION", "heart" to "PULSE", "pulse" to "PULSE", "bpm" to "PULSE", "label" to "LENS", "expiry" to "LENS",
+        "lens" to "LENS", "boil" to "BOIL", "boiling" to "BOIL", "oil" to "OIL", "frying" to "OIL", "outbreak" to "OUTBREAK", "sick" to "OUTBREAK", "diarrhoea" to "OUTBREAK", "anaemia" to "ANAEMIA", "mosquito" to "MOSQUITO", "exposure" to "EXPOSURE", "ledger" to "EXPOSURE", "sos" to "GUARDIAN", "emergency" to "GUARDIAN", "fall" to "GUARDIAN", "guardian" to "GUARDIAN", "dengue" to "MOSQUITO", "malaria" to "MOSQUITO", "anemia" to "ANAEMIA", "pallor" to "ANAEMIA", "grain" to "GRAIN", "rice" to "GRAIN", "dal" to "GRAIN", "stones" to "GRAIN", "vision" to "VISION", "gesture" to "VISION", "gestures" to "VISION", "heart" to "PULSE", "pulse" to "PULSE", "bpm" to "PULSE", "label" to "LENS", "expiry" to "LENS",
     )
 
     fun routerPrompt(question: String, hasImage: Boolean, context: String = ""): String {

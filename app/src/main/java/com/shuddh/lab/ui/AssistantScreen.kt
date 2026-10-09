@@ -270,7 +270,7 @@ fun AssistantScreen(app: AppState) {
     // Pre-load both models in the background so the first answer isn't slowed by loading.
     androidx.compose.runtime.LaunchedEffect(Unit) {
         if (llm.installed(ModelRole.TOOLS)) llm.warmUp(ModelRole.TOOLS)
-        if (llm.installed(ModelRole.CHAT)) llm.warmUp(ModelRole.CHAT)
+        if (llm.hasChat()) llm.warmUp(llm.chatRole(longForm = false))
     }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val ordered = turns.toList()
@@ -290,7 +290,7 @@ fun AssistantScreen(app: AppState) {
                 Column(Modifier.weight(1f)) {
                     Text("Ask Shuddh", fontFamily = Display, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Palette.text)
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.clickable { app.go(Screen.MODELS) }) {
-                        MiniChip(if (app.llm.installed(ModelRole.PRO)) "PRO" else "CHAT", app.llm.hasChat())
+                        MiniChip(when (app.llm.chatRole()) { ModelRole.MINICPM -> "MINICPM"; ModelRole.PRO -> "PRO"; else -> "CHAT" }, app.llm.hasChat())
                         MiniChip("TOOLS", app.llm.installed(ModelRole.TOOLS))
                         MiniChip(if (onDevice) "SPEECH" else "TYPE", onDevice)
                         MiniChip(if (app.prefs.onlineAssistant) "WEB ON" else "LOCAL", true)

@@ -84,6 +84,7 @@ fun ResultScreen(app: AppState) {
         }
         }
         ConfidenceCard(o, Modifier.enter(1))
+        if (o.value != null && com.shuddh.lab.core.TruePrice.applies(o.analyteId, o.unit) && o.value > 0.5) TruePriceCard(app, o.analyteId, o.value)
         TrendCard(app, o)
         Glass(Modifier.enter(1), glow = color) {
             Text(Txt3.what.get(app.lang), color = Palette.text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -339,5 +340,45 @@ private fun TrendCard(app: AppState, o: com.shuddh.lab.core.Outcome) {
         val prev = past.last().value!!
         val d = v - prev
         Note("Previous ${com.shuddh.lab.core.fmt(prev)} → now ${com.shuddh.lab.core.fmt(v)} ${o.unit} (${if (d >= 0) "+" else ""}${com.shuddh.lab.core.fmt(d)}) over ${past.size + 1} scans.")
+    }
+}
+
+
+/** True Price: what a diluted product really costs you — per genuine litre, and per month. */
+@Composable
+private fun TruePriceCard(app: AppState, analyteId: String, pct: Double) {
+    val (product, unit) = com.shuddh.lab.core.TruePrice.product(analyteId)
+    var paid by remember { mutableStateOf(app.prefs.json("price_$product")?.optDouble("p")?.takeIf { !it.isNaN() } ?: if (product == "milk") 60.0 else 400.0) }
+    var qty by remember { mutableStateOf(app.prefs.json("price_$product")?.optDouble("q")?.takeIf { !it.isNaN() } ?: if (product == "milk") 1.0 else 0.05) }
+    fun save() = app.prefs.putJson("price_$product", org.json.JSONObject().put("p", paid).put("q", qty))
+    val real = com.shuddh.lab.core.TruePrice.real(paid, pct)
+    val lost = com.shuddh.lab.core.TruePrice.lostPerMonth(paid, pct, qty)
+    val a = remember(real) { androidx.compose.animation.core.Animatable(paid.toFloat()) }
+    LaunchedEffect(real) { a.animateTo(real.toFloat(), androidx.compose.animation.core.tween(1400)) }
+    val lostA = remember(lost) { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(lost) { lostA.animateTo(lost.toFloat(), androidx.compose.animation.core.tween(1600, delayMillis = 400)) }
+    Glass(Modifier.enter(2), glow = Palette.amber) {
+        Text("💸 The true price", color = Palette.amber, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 18.sp)
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text("₹${paid.toInt()}", color = Palette.muted, fontSize = 22.sp, fontWeight = FontWeight.Bold, textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough)
+            Text("  →  ", color = Palette.muted, fontSize = 20.sp)
+            Text("₹${a.value.toInt()}", color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 34.sp)
+            Text(" per real $unit", color = Palette.muted, fontSize = 13.sp, modifier = Modifier.padding(bottom = 6.dp))
+        }
+        Text("You paid for ${pct.toInt()}% ${if (product == "milk") "water" else "sugar syrup"}. That's about ₹${lostA.value.toInt()} lost every month — ₹${(lost * 12).toInt()} a year.",
+            color = Palette.text, fontSize = 14.sp)
+        // Visual: what fills the "litre" you paid for.
+        androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(26.dp)) {
+            val f = (1 - pct / 100).toFloat().coerceIn(0f, 1f)
+            drawRoundRect(Color(0xFFF8FAFC), size = androidx.compose.ui.geometry.Size(size.width * f, size.height), cornerRadius = androidx.compose.ui.geometry.CornerRadius(10f))
+            drawRoundRect(Color(0xFF60A5FA), topLeft = androidx.compose.ui.geometry.Offset(size.width * f, 0f), size = androidx.compose.ui.geometry.Size(size.width * (1 - f), size.height), cornerRadius = androidx.compose.ui.geometry.CornerRadius(10f))
+        }
+        Row { Text("real $product ${(100 - pct).toInt()}%", color = Palette.muted, fontSize = 11.sp, modifier = Modifier.weight(1f)); Text("${if (product == "milk") "water" else "syrup"} ${pct.toInt()}%", color = Palette.blue, fontSize = 11.sp) }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(paid.toInt().toString(), { v -> v.toDoubleOrNull()?.let { paid = it; save() } }, label = { Text("₹ per $unit") }, singleLine = true, modifier = Modifier.weight(1f),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
+            OutlinedTextField(com.shuddh.lab.core.fmt(qty), { v -> v.toDoubleOrNull()?.let { qty = it; save() } }, label = { Text("$unit per day") }, singleLine = true, modifier = Modifier.weight(1f),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
+        }
     }
 }

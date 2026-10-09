@@ -184,6 +184,9 @@ private fun Root(app: AppState) {
                     Screen.GRAIN -> com.shuddh.lab.instruments.GrainScreen(app)
                     Screen.OUTBREAK -> com.shuddh.lab.ui.OutbreakScreen(app)
                     Screen.ANAEMIA -> com.shuddh.lab.instruments.AnaemiaScreen(app)
+                    Screen.MOSQUITO -> com.shuddh.lab.instruments.MosquitoScreen(app)
+                    Screen.GUARDIAN -> com.shuddh.lab.ui.GuardianScreen(app)
+                    Screen.EXPOSURE -> com.shuddh.lab.ui.ExposureScreen(app)
                     Screen.STRIP -> StripScreen(app)
                     Screen.SCATTER -> ScatterScreen(app)
                     Screen.FLOAT -> FloatScreen(app)
@@ -197,6 +200,8 @@ private fun Root(app: AppState) {
             } }
         }
         if (screen in tabs) Box(Modifier.align(Alignment.BottomCenter)) { BottomBar(app, screen) }
+        Box(Modifier.align(Alignment.TopCenter)) { com.shuddh.lab.ui.IncomingSosBanner(app) }
+        com.shuddh.lab.ui.GuardianAlert(app)
     }
 }
 

@@ -50,6 +50,16 @@ fun ModelsScreen(app: AppState) {
                     Badge(llm.state[role] ?: "", if (llm.loaded(role)) Palette.accent else if (llm.installed(role)) Palette.cyan else Palette.amber)
                     llm.lastStats[role]?.let { Badge("${fmt(it.tokensPerSec)} tok/s · ${it.backend}", Palette.violet) }
                 }
+                if (role == ModelRole.MINICPM && llm.installed(role)) {
+                    var on by remember { mutableStateOf(llm.minicpmEnabled) }
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Use MiniCPM5 for chat", color = Palette.text, fontSize = 13.sp)
+                            Text("OpenBMB's 2B model on Google LiteRT-LM — replaces Qwen/Phi for answers.", color = Palette.muted, fontSize = 11.sp)
+                        }
+                        androidx.compose.material3.Switch(on, { on = it; llm.minicpmEnabled = it; llm.unload(ModelRole.MINICPM) })
+                    }
+                }
                 if (role == ModelRole.PRO && llm.installed(role)) {
                     var pro by remember { mutableStateOf(llm.proEnabled) }
                     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -84,7 +94,7 @@ fun ModelsScreen(app: AppState) {
         }
         Section("Install by USB (fastest)") {
             Note("Copy the .task files into the app's private model folder:", Palette.text)
-            Mono("adb push qwen15.task /sdcard/Android/data/com.shuddh.lab/files/models/${ModelRole.CHAT.file}\nadb push qwen05.task /sdcard/Android/data/com.shuddh.lab/files/models/${ModelRole.TOOLS.file}\nadb push phi4.task /sdcard/Android/data/com.shuddh.lab/files/models/${ModelRole.PRO.file}", Palette.cyan)
+            Mono("adb push qwen15.task /sdcard/Android/data/com.shuddh.lab/files/models/${ModelRole.CHAT.file}\nadb push qwen05.task /sdcard/Android/data/com.shuddh.lab/files/models/${ModelRole.TOOLS.file}\nadb push phi4.task /sdcard/Android/data/com.shuddh.lab/files/models/${ModelRole.PRO.file}\nadb push MiniCPM5-2B_int4.litertlm /sdcard/Android/data/com.shuddh.lab/files/models/${ModelRole.MINICPM.file}", Palette.cyan)
             Note("Models: litert-community/Qwen2.5-1.5B-Instruct and Qwen2.5-0.5B-Instruct (q8, ekv1280) from Hugging Face, Apache-2.0. Shuddh has no internet permission, so models are never downloaded by the app itself.")
             Btn("Refresh", primary = false) { llm.refresh() }
         }

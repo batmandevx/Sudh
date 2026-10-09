@@ -209,7 +209,7 @@ fun SettingsScreen(app: AppState) {
             Group("About", 7) {
                 LinkRow("📖", "Adulteration guide", "Home tests for 16 common foods") { app.go(Screen.FOODGUIDE) }
                 LinkRow("🧰", "Build the ₹50 kit", "Grating, polarisers, vials") { app.go(Screen.GUIDE) }
-                LinkRow("✨", "On-device AI models", "${ModelRole.entries.count { app.llm.installed(it) }}/3 installed") { app.go(Screen.MODELS) }
+                LinkRow("✨", "On-device AI models", "${ModelRole.entries.count { app.llm.installed(it) }}/4 installed") { app.go(Screen.MODELS) }
                 LinkRow("↺", "Replay intro", "See the welcome screens again") { app.prefs.onboarded = false; app.go(Screen.ONBOARDING) }
                 Text("Shuddh · Qwen2.5 (Apache-2.0), MediaPipe, ML Kit, ZXing, osmdroid, © OpenStreetMap contributors. Optional web results from Bing. Screening-grade results — confirm critical findings with an accredited lab.",
                     color = Palette.muted, fontSize = 11.sp)

@@ -21,6 +21,7 @@ enum class ModelRole(val file: String, val title: String, val job: String, val t
     CHAT("shuddh-chat.task", "Qwen2.5-1.5B Instruct", "Chat · explains results in your language", 0.6f, 40, 1280),
     TOOLS("shuddh-tools.task", "Qwen2.5-0.5B Instruct", "Tool router · picks which app function to call", 0.05f, 1, 2048),
     PRO("shuddh-pro.task", "Phi-4-mini Instruct 3.8B", "Pro chat · recipes, writing, reasoning — used instead of Qwen 1.5B when installed", 0.5f, 40, 4096),
+    MINICPM("shuddh-minicpm.litertlm", "MiniCPM5-2B (int4)", "Chat · OpenBMB MiniCPM5 via LiteRT-LM — fast, capable, multilingual", 0.6f, 40, 4096),
 }
 
 data class GenStats(val tokens: Int, val millis: Long, val backend: String) {
@@ -49,7 +50,72 @@ class LocalLlm(private val ctx: Context) {
     fun file(role: ModelRole) = File(dir, role.file)
     fun installed(role: ModelRole) = file(role).let { it.exists() && it.length() > 50_000_000 }
     fun sizeMb(role: ModelRole) = file(role).length() / 1_048_576
-    fun loaded(role: ModelRole) = engines.containsKey(role)
+    fun loaded(role: ModelRole) = if (role == ModelRole.MINICPM) lrt != null else engines.containsKey(role)
+
+    /** Use MiniCPM5 (LiteRT-LM) as the chat model when installed. */
+    var minicpmEnabled: Boolean
+        get() = sp.getBoolean("minicpm_enabled", true)
+        set(v) { sp.edit().putBoolean("minicpm_enabled", v).apply() }
+
+    private var lrt: com.google.ai.edge.litertlm.Engine? = null
+
+    /** LiteRT-LM engine for .litertlm models — GPU first, CPU fallback. */
+    private suspend fun lrtEngine(): com.google.ai.edge.litertlm.Engine = lrt ?: withContext(Dispatchers.IO) {
+        val role = ModelRole.MINICPM
+        check(installed(role)) { "${role.title} is not installed" }
+        state[role] = "Loading…"
+        fun build(b: com.google.ai.edge.litertlm.Backend) = com.google.ai.edge.litertlm.Engine(
+            com.google.ai.edge.litertlm.EngineConfig(modelPath = file(role).absolutePath, backend = b, maxNumTokens = role.maxTokens, cacheDir = ctx.cacheDir.path),
+        ).also { it.initialize() }
+        val wantGpu = backendPref(role) != "CPU"
+        val (e, name) = runCatching { if (wantGpu) build(com.google.ai.edge.litertlm.Backend.GPU()) to "GPU" else build(com.google.ai.edge.litertlm.Backend.CPU()) to "CPU" }
+            .recoverCatching { build(com.google.ai.edge.litertlm.Backend.CPU()) to "CPU" }
+            .getOrElse { state[role] = "Failed to load: ${it.message}"; throw it }
+        lrt = e; backends[role] = name; state[role] = "Loaded · $name"
+        e
+    }
+
+    private class StopGen : RuntimeException()
+
+    /** Streams a reply from MiniCPM5. The ChatML prompt is split into system + user; thinking is off. */
+    private suspend fun generateLrt(prompt: String, onText: (String) -> Unit): String {
+        val e = lrtEngine()
+        busy = true
+        val started = System.currentTimeMillis()
+        val system = prompt.substringAfter("<|im_start|>system\n", "").substringBefore("<|im_end|>")
+        val user = prompt.substringAfter("<|im_start|>user\n", prompt).substringBefore("<|im_end|>")
+        val out = StringBuilder()
+        var kept: String? = null
+        try {
+            val conv = e.createConversation(com.google.ai.edge.litertlm.ConversationConfig(
+                systemInstruction = com.google.ai.edge.litertlm.Contents.of(system.ifBlank { "You are a helpful assistant." }),
+                samplerConfig = com.google.ai.edge.litertlm.SamplerConfig(ModelRole.MINICPM.topK, 0.9, ModelRole.MINICPM.temperature.toDouble(), 0),
+                thinkingConfig = com.google.ai.edge.litertlm.ThinkingConfig(false, 0),
+            ))
+            try {
+                // Callback API (not the Flow one): the Flow path needs a newer kotlinx-coroutines than the app ships.
+                suspendCancellableCoroutine<Unit> { cont ->
+                    var stopped = false
+                    conv.sendMessageAsync(user, object : com.google.ai.edge.litertlm.MessageCallback {
+                        override fun onMessage(message: com.google.ai.edge.litertlm.Message) {
+                            if (stopped) return
+                            out.append(message.toString())
+                            val cur = stripThink(out.toString())
+                            val cut = loopCut(cur)
+                            if (cut != null) { stopped = true; kept = cur.substring(0, cut).trimEnd(); onText(kept!!); runCatching { conv.cancelProcess() } }
+                            else onText(cur)
+                        }
+                        override fun onDone() { if (cont.isActive) cont.resume(Unit) }
+                        override fun onError(throwable: Throwable) { if (cont.isActive) { if (stopped) cont.resume(Unit) else cont.resumeWithException(throwable) } }
+                    }, mapOf("enable_thinking" to false))
+                    cont.invokeOnCancellation { runCatching { conv.cancelProcess() } }
+                }
+            } finally { runCatching { conv.close() } }
+            val text = kept ?: stripThink(out.toString())
+            lastStats = lastStats + (ModelRole.MINICPM to GenStats(text.length / 4, System.currentTimeMillis() - started, backends[ModelRole.MINICPM] ?: "?"))
+            return text.trim()
+        } finally { busy = false }
+    }
 
     /** Use Phi-4-mini for long-form answers (recipes, explanations) when installed. */
     var proEnabled: Boolean
@@ -61,11 +127,12 @@ class LocalLlm(private val ctx: Context) {
      * tasks; Qwen 1.5B (fast) handles short replies. Falls back to whichever is installed.
      */
     fun chatRole(longForm: Boolean = true): ModelRole = when {
+        installed(ModelRole.MINICPM) && minicpmEnabled -> ModelRole.MINICPM
         installed(ModelRole.PRO) && proEnabled && (longForm || !installed(ModelRole.CHAT)) -> ModelRole.PRO
         installed(ModelRole.CHAT) -> ModelRole.CHAT
         else -> ModelRole.PRO
     }
-    fun hasChat() = installed(ModelRole.PRO) || installed(ModelRole.CHAT)
+    fun hasChat() = installed(ModelRole.PRO) || installed(ModelRole.CHAT) || installed(ModelRole.MINICPM)
 
     init { refresh() }
 
@@ -106,9 +173,10 @@ class LocalLlm(private val ctx: Context) {
         e
     }
 
-    suspend fun warmUp(role: ModelRole) { runCatching { engine(role) } }
+    suspend fun warmUp(role: ModelRole) { runCatching { if (role == ModelRole.MINICPM) lrtEngine() else engine(role) } }
 
     fun unload(role: ModelRole) {
+        if (role == ModelRole.MINICPM) { runCatching { lrt?.close() }; lrt = null }
         engines.remove(role)?.close()
         backends.remove(role)
         refresh()
@@ -116,6 +184,7 @@ class LocalLlm(private val ctx: Context) {
 
     /** Streams a completion. [onText] receives the full text so far on every new chunk. */
     suspend fun generate(role: ModelRole, prompt: String, onText: (String) -> Unit = {}): String {
+        if (role == ModelRole.MINICPM) return generateLrt(prompt, onText)
         val e = engine(role)
         busy = true
         val started = System.currentTimeMillis()
@@ -217,6 +286,9 @@ class LocalLlm(private val ctx: Context) {
             }
             return null
         }
+
+        /** Removes any <think>…</think> reasoning a hybrid-thinking model may still emit. */
+        fun stripThink(s: String): String = s.replace(Regex("(?s)<think>.*?(</think>|$)"), "").trimStart()
 
         /** Converts a ChatML prompt to Phi-4's template (<|system|>…<|end|><|user|>…<|end|><|assistant|>). */
         fun toPhi(chatml: String): String = chatml
