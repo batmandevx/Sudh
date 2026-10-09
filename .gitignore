@@ -1,0 +1,16 @@
+.gradle/
+build/
+app/build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+.kilo/
+.kilocode/
+.vscode/
+*.apk
+*.aab
+*.keystore
+*.jks
+# Personal planning notes — not part of the app
+idea
