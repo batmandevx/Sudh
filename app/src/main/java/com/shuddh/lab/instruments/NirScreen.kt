@@ -147,7 +147,7 @@ fun NirScreen(app: AppState) {
             return Outcome("Shuddh NIR", "nir_water", nirName, null, "", Level.INCONCLUSIVE,
                 "IR signal too weak — try the other camera or a darker box", listOf(Words.retest), ev)
         }
-        ev += Evidence("PATTERN", "940 nm absorbance A = ${fmt(a)} (water absorbs at this band)")
+        ev += Evidence("PATTERN", "940 nm attenuation A = ${fmt(a)} (scattering + absorption through the vial)")
         val p = pureA; val d = dilA; val pct = dilPct.toDoubleOrNull()
         if (p == null || d == null || pct == null || d - p < 0.005) {
             return Outcome("Shuddh NIR", "nir_water", nirName, a, "AU", Level.INCONCLUSIVE,
@@ -164,8 +164,8 @@ fun NirScreen(app: AppState) {
         }
         ev += Evidence("HYPOTHESIS", "≈${fmt(added)}% added water (linear between 0% and ${fmt(pct)}% references)", lvl == Level.SAFE)
         return Outcome("Shuddh NIR", "nir_water", nirName, added, "%", lvl,
-            "≈${fmt(added)}% added water by 940 nm absorption", adv, ev,
-            "Screening-grade: water's 940 nm band is weak; keep vial and path identical between references and sample.")
+            "≈${fmt(added)}% dilution vs your pure/diluted references (NIR attenuation)", adv, ev,
+            "Screening-grade and reference-relative: NIR through milk is dominated by scattering from fat and protein, so the result is a dilution estimate between your own references, not a water-absorption measurement. Keep vial and path identical.")
     }
 
     ScreenFrame("Shuddh NIR", "IR blaster → 940 nm water probe", onBack = { app.back() }) {

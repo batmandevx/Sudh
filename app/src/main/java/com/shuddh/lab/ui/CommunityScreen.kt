@@ -36,6 +36,8 @@ import com.shuddh.lab.core.Level
 import com.shuddh.lab.core.Qr
 import com.shuddh.lab.core.stamp
 import java.util.concurrent.atomic.AtomicInteger
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.height
@@ -50,7 +52,7 @@ import androidx.compose.ui.graphics.graphicsLayer
  */
 @Composable
 fun CommunityScreen(app: AppState) {
-    var scanning by remember { mutableStateOf(false) }
+    var sheet by remember { mutableStateOf(HiveSheet.NONE) }
     var msg by remember { mutableStateOf<String?>(null) }
     var showSeal by remember { mutableStateOf<CommunityItem?>(null) }
     val items = app.community.items
@@ -63,14 +65,6 @@ fun CommunityScreen(app: AppState) {
     }
 
     val latestBad = app.store.records.lastOrNull { it.level == Level.UNSAFE || it.level == Level.CAUTION }
-    fun warnNeighbours() {
-        val r = latestBad ?: run { msg = "No unsafe or caution result to share yet."; return }
-        val item = CommunityItem.alertFrom(r)
-        if (!app.mesh.running) { app.go(Screen.MESH); msg = "Join the mesh first, then tap Warn neighbours again."; return }
-        app.mesh.send(com.shuddh.lab.core.MeshProto.ALERT, item.compact())
-        Haptics.thud(ctx); msg = "Alert broadcast to ${app.mesh.peers.size} nearby phone(s) — it hops onward phone-to-phone."
-        app.voice.speak("Alert sent to nearby phones.", app.lang)
-    }
 
     ScreenFrame("Hive", "Your neighbourhood's offline food-safety network") {
         Glass(Modifier.enter(0), glow = Palette.cyan, padding = 12) {
@@ -82,13 +76,11 @@ fun CommunityScreen(app: AppState) {
 
         // Actions
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.enter(1)) {
-            ActionTile("📷", "Scan a QR", "seal or alert", Palette.cyan, Modifier.weight(1f)) { scanning = !scanning; msg = null }
-            ActionTile("📣", "Warn neighbours", latestBad?.let { "${it.analyte} · ${it.level.name}" } ?: "no alert yet", Palette.red, Modifier.weight(1f)) { warnNeighbours() }
+            ActionTile("📷", "Scan a QR", "seal or alert", Palette.cyan, Modifier.weight(1f)) { sheet = HiveSheet.SCAN; msg = null }
+            ActionTile("📣", "Warn neighbours", latestBad?.let { "${it.analyte} · ${it.level.name}" } ?: "write an alert", Palette.red, Modifier.weight(1f)) { sheet = HiveSheet.WARN }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.enter(2)) {
-            ActionTile("🔳", "Share result", "as QR code", Palette.accent, Modifier.weight(1f)) {
-                app.store.records.lastOrNull()?.let { showSeal = CommunityItem.alertFrom(it) } ?: run { msg = "Run a test first." }
-            }
+            ActionTile("🔳", "Share result", "as QR code", Palette.accent, Modifier.weight(1f)) { sheet = HiveSheet.SHARE }
             ActionTile("📡", "Mesh chat", if (app.mesh.running) "${app.mesh.peers.size} nearby" else "Bluetooth, no internet", Palette.violet, Modifier.weight(1f)) { app.go(Screen.MESH) }
         }
         val ob = com.shuddh.lab.core.OutbreakWatch.assess(items.toList(), app.prefs.area)
@@ -96,14 +88,6 @@ fun CommunityScreen(app: AppState) {
             ActionTile("🚨", "Outbreak Watch", "${ob.status.label} · ${ob.recentCases} sick in 3 days", Color(ob.status.argb), Modifier.weight(1f)) { app.go(Screen.OUTBREAK) }
         }
         msg?.let { Note(it, Palette.accent) }
-        if (scanning) Section("Scan a Seal or Alert") {
-            QrScanner { text ->
-                val item = CommunityItem.parse(text) ?: CommunityItem.parseCompact(text)
-                if (item == null) msg = "That QR isn't a Shuddh code."
-                else { scanning = false; msg = if (app.community.add(item)) "Imported: ${item.describe()}" else "Already imported earlier."; Haptics.result(ctx, item.level) }
-            }
-            Btn("Stop scanning", Modifier.fillMaxWidth(), primary = false) { scanning = false }
-        }
 
         val batches = app.community.batchAlerts()
         if (batches.isNotEmpty()) Glass(Modifier.enter(3), glow = Palette.red) {
@@ -125,6 +109,7 @@ fun CommunityScreen(app: AppState) {
         }
     }
     showSeal?.let { QrDialog(it, "Another phone scans this in Hive → Scan a QR.") { showSeal = null } }
+    if (sheet != HiveSheet.NONE) HiveSheetView(app, sheet, onDone = { m -> sheet = HiveSheet.NONE; if (m != null) msg = m })
 }
 
 /** Animated network: your phone in the centre, nearby phones and received reports around it, alerts pulsing in. */
@@ -344,5 +329,127 @@ fun QrScanner(onResult: (String) -> Unit) {
                 if (text != lastText) { lastText = text; onResult(text) }
             }
         }
+    }
+}
+
+
+enum class HiveSheet { NONE, SCAN, WARN, SHARE }
+
+private val problems = listOf("Watered milk", "Detergent in milk", "Fake honey", "Dirty / smelly water", "Reused frying oil", "Stones in grain", "Expired packet", "Lead in turmeric")
+
+/** Full-screen panels for the Hive actions: scan a QR, warn neighbours over the mesh, or show a result as a QR. */
+@Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+fun HiveSheetView(app: AppState, sheet: HiveSheet, onDone: (String?) -> Unit) {
+    val ctx = app.ctx
+    var picked by remember { mutableStateOf<CommunityItem?>(null) }
+    var sent by remember { mutableStateOf<String?>(null) }
+    var product by remember { mutableStateOf(problems.first()) }
+    var vendor by remember { mutableStateOf(app.prefs.lastVendor) }
+    var area by remember { mutableStateOf(app.prefs.area) }
+    var level by remember { mutableStateOf(Level.UNSAFE) }
+    val perms = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) { }
+
+    fun broadcast(item: CommunityItem) {
+        runCatching { if (!app.mesh.running) app.mesh.start() }
+        if (!app.mesh.running) {
+            if (android.os.Build.VERSION.SDK_INT >= 31) perms.launch(arrayOf(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_ADVERTISE, android.Manifest.permission.BLUETOOTH_CONNECT))
+            sent = "Allow Bluetooth, then tap Broadcast again."; return
+        }
+        app.mesh.send(com.shuddh.lab.core.MeshProto.ALERT, item.compact())
+        app.community.add(item)
+        Haptics.thud(ctx); app.voice.speak("Alert sent to nearby phones.", app.lang)
+        sent = "Broadcast to ${app.mesh.peers.size} nearby phone(s) — it hops onward phone-to-phone."
+    }
+    fun custom() = CommunityItem("alert", vendor.trim(), area.trim(), product, level, "", System.currentTimeMillis(), 1, if (level == Level.UNSAFE) 1 else 0, "manual")
+
+    androidx.compose.ui.window.Dialog(onDismissRequest = { onDone(null) }, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(
+            Modifier.fillMaxWidth().padding(12.dp).clip(RoundedCornerShape(28.dp)).background(Color(0xFF0B1220))
+                .verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(when (sheet) { HiveSheet.SCAN -> "📷 Scan a Shuddh QR"; HiveSheet.WARN -> "📣 Warn neighbours"; else -> "🔳 Share a result as QR" },
+                    color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 20.sp, modifier = Modifier.weight(1f))
+                Text("✕", color = Palette.muted, fontSize = 20.sp, modifier = Modifier.clickable { onDone(null) }.padding(6.dp))
+            }
+            when (sheet) {
+                HiveSheet.SCAN -> {
+                    Note("Point at a seal or alert QR shown on another phone or printed at a shop counter. Decoding happens on this phone.")
+                    QrScanner { text ->
+                        val item = CommunityItem.parse(text) ?: CommunityItem.parseCompact(text)
+                        if (item != null) { Haptics.result(ctx, item.level); onDone(if (app.community.add(item)) "Imported: ${item.describe()}" else "Already imported earlier.") }
+                    }
+                }
+                HiveSheet.WARN, HiveSheet.SHARE -> {
+                    val recent = app.store.records.takeLast(8).reversed()
+                    if (recent.isNotEmpty()) {
+                        Text("Your recent results", color = Palette.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        recent.forEach { r ->
+                            val it = CommunityItem.alertFrom(r)
+                            val on = picked?.ref == it.ref
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(if (on) Color(r.level.argb).copy(alpha = 0.25f) else Color.White.copy(alpha = 0.05f))
+                                .clickable { picked = it }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(10.dp).background(Color(r.level.argb), CircleShape)); Spacer(Modifier.width(10.dp))
+                                Text(it.describe(), color = Palette.text, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                                if (on) Text("✓", color = Palette.accent, fontWeight = FontWeight.Black)
+                            }
+                        }
+                        Text("…or write a quick alert", color = Palette.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    } else Note("No saved scans yet — write a quick alert:")
+                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        problems.forEach { p ->
+                            val on = picked == null && product == p
+                            Text(p, color = if (on) Color.Black else Palette.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) Palette.amber else Color.White.copy(alpha = 0.07f)).clickable { product = p; picked = null }.padding(horizontal = 10.dp, vertical = 7.dp))
+                        }
+                    }
+                    if (picked == null) {
+                        androidx.compose.material3.OutlinedTextField(vendor, { vendor = it }, label = { Text("Shop / brand / source") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        androidx.compose.material3.OutlinedTextField(area, { area = it }, label = { Text("Area") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(Level.UNSAFE, Level.CAUTION).forEach { l ->
+                                Text(if (l == Level.UNSAFE) "Unsafe" else "Suspicious", color = if (level == l) Color.Black else Palette.text, fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (level == l) Color(l.argb) else Color.White.copy(alpha = 0.06f)).clickable { level = l }.padding(10.dp),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            }
+                        }
+                    }
+                    val item = picked ?: custom()
+                    if (sheet == HiveSheet.WARN) {
+                        if (sent != null) BroadcastRipple()
+                        sent?.let { Note(it, Palette.accent) }
+                        Btn("📣 Broadcast to nearby phones", Modifier.fillMaxWidth()) { broadcast(item) }
+                        Note("Goes over Shuddh's Bluetooth mesh — no internet needed. Each phone relays it onward. Only the product, shop, area and verdict are shared.")
+                    } else {
+                        val bmp = remember(item.toPayload()) { Qr.encode(item.toPayload(), 640) }
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            androidx.compose.foundation.Image(bmp.asImageBitmap(), "QR", Modifier.size(240.dp).clip(RoundedCornerShape(16.dp)).background(Color.White).padding(8.dp))
+                        }
+                        Text(item.describe(), color = Palette.text, fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                        Btn("Share QR image", Modifier.fillMaxWidth(), primary = false) {
+                            val dir = java.io.File(ctx.cacheDir, "reports").apply { mkdirs() }
+                            val f = java.io.File(dir, "shuddh_alert_${System.currentTimeMillis()}.png")
+                            f.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                            com.shuddh.lab.core.Complaint.shareFile(ctx, f, "image/png", "Share QR")
+                        }
+                    }
+                }
+                HiveSheet.NONE -> {}
+            }
+        }
+    }
+}
+
+@Composable
+private fun BroadcastRipple() {
+    val inf = androidx.compose.animation.core.rememberInfiniteTransition(label = "bc")
+    val t by inf.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1400, easing = androidx.compose.animation.core.LinearEasing)), label = "t")
+    val c = Palette.red
+    androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(110.dp)) {
+        val ctr = androidx.compose.ui.geometry.Offset(size.width / 2, size.height / 2)
+        for (k in 0 until 3) { val p = (t + k / 3f) % 1f; drawCircle(c.copy(alpha = (1 - p) * 0.5f), 12f + p * size.height * 0.6f, ctr, style = androidx.compose.ui.graphics.drawscope.Stroke(4f)) }
+        drawCircle(c, 14f, ctr)
     }
 }

@@ -12,8 +12,8 @@ android {
         applicationId = "com.shuddh.lab"
         minSdk = 26
         targetSdk = 35
-        versionCode = 11
-        versionName = "5.2"
+        versionCode = 12
+        versionName = "5.3"
         // Modern Android phones are arm64; shipping one ABI keeps the download small.
         ndk { abiFilters += "arm64-v8a" }
     }

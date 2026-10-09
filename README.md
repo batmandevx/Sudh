@@ -1,6 +1,6 @@
 # Shuddh — The People's Lab (Android)
 
-> 📲 **Download the app:** [Shuddh-v5.1.apk](https://github.com/batmandevx/Sudh/releases/download/v5.1/Shuddh-v5.1.apk) (Android 8+, arm64, 72 MB) · [all releases](https://github.com/batmandevx/Sudh/releases)
+> 📲 **Download the app:** [latest release APK](https://github.com/batmandevx/Sudh/releases/latest) (Android 8+, arm64) · [all releases](https://github.com/batmandevx/Sudh/releases)
 
 
 An offline phone lab for testing milk, water, honey, air and produce. It uses the phone's flash, camera, IR blaster, gyroscope, mic and vibration motor as measuring instruments. Verdicts are spoken in English, Hindi, Kannada, Telugu or Tamil, and the app stores a hash-chained history on the phone.
@@ -68,6 +68,20 @@ Every verdict comes with an **evidence ladder** (observation → pattern → qua
 - **Family Care:** a pre-filled SMS to a family member, sent through the phone's SMS app.
 - **Haptic verdicts:** two short pulses = safe, three = caution, one long = danger.
 - **Vibration stirrer:** the phone vibrates for 10 s to mix a vial resting on it.
+
+## v5.3: organised Home, new health & community tools
+
+- **Home:** Discover is grouped into Health checks, Kitchen safety, Community, and AI & learning. Each group is a 4-column grid of hand-drawn animated line icons (no emoji, no sideways scrolling). Adds a "Why India needs this" card (FSSAI data from a Lok Sabha reply, July 2026).
+- **Mosquito Radar:** harmonic wingbeat detection, with mains hum and wobbly sounds rejected. Pitch likelihood × time-of-day prior gives Aedes, Anopheles, Culex or male. Results can be reported to Hive.
+- **Guardian:** a foreground fall detector (free fall → impact → stillness), a 30 s "Are you OK?" check, then an SOS over the Bluetooth mesh and SMS with GPS, a siren and torch Morse SOS. Includes a disaster beacon and a banner for SOS from nearby phones.
+- **Family Exposure Ledger:** nitrate, fluoride and arsenic intake as a % of health-based daily limits, per family member, over 30 days.
+- **True Price:** dilution verdicts show the real price per litre and the money lost per month.
+- **Milkman Ledger:** daily litres, a calendar coloured by water tests, and a fair month-end bill you can send to the milkman.
+- **New tests:** lead chromate in turmeric (DPC, 540 nm screening proxy) and iodized salt (starch–iodine blue).
+- **MiniCPM5-2B** on-device chat via LiteRT-LM (Kotlin 2.2), about 7 tok/s on GPU.
+- **Hive:** Scan, Warn and Share open full-screen panels. Warn and Share accept a quick hand-written alert.
+- **Boil Guard:** altitude picker on phones without a barometer.
+- **Wording:** NIR, Polar and Magneto claims rephrased as reference-relative screening.
 
 ## v5.1: Outbreak Watch and Anaemia Screen
 

@@ -1,6 +1,10 @@
 package com.shuddh.lab.ui
 
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -240,6 +244,7 @@ fun HomeScreen(app: AppState) {
             IconSection("More tools", moreTools, ready, app, Modifier.enter(7))
             ExpiringStrip(app)
             DiscoverRow(app, Modifier.enter(8))
+            WhyIndiaCard(Modifier.enter(9))
             if (records.isNotEmpty()) RecentStrip(app)
             Spacer(Modifier.height(96.dp))
         }
@@ -677,46 +682,98 @@ private fun ExpiringStrip(app: AppState) {
 }
 
 /** Discover: guide, pantry, badges, share card — the "life around the lab" features. */
+private data class Feature(val icon: FIcon, val title: String, val sub: String, val color: Color, val go: () -> Unit)
+
+/** Discover: features grouped into themed carousels of uniform, animated cards. */
 @Composable
 private fun DiscoverRow(app: AppState, modifier: Modifier) {
     val badges = com.shuddh.lab.core.Badges.all(app.store, app.prefs)
-    val items = listOf(
-        Triple("📖", "Food guide", "16 home tests") to { app.go(Screen.FOODGUIDE) },
-        Triple("🥫", "Pantry", "${app.pantry.items.size} tracked") to { app.go(Screen.PANTRY) },
-        Triple("🏅", "Badges", "${badges.count { it.unlocked }}/${badges.size}") to { app.go(Screen.BADGES) },
-        Triple("❤️", "Pulse", "heart rate") to { app.go(Screen.PULSE) },
-        Triple("👁️", "Vision Lab", "hands · face · objects") to { app.go(Screen.VISION) },
-        Triple("🤖", "Ask Shuddh", "recipes · tasks · AI") to { app.go(Screen.ASSISTANT) },
-        Triple("♨️", "Boil Guard", "safe drinking water") to { app.go(Screen.BOIL) },
-        Triple("🍳", "Oil Check", "frying-oil reuse") to { app.go(Screen.OIL) },
-        Triple("🌾", "Grain Scan", "stones · insects · broken") to { app.go(Screen.GRAIN) },
-        Triple("🌐", "Hive", "warn your neighbours") to { app.tab(Screen.COMMUNITY) },
-        Triple("🚨", "Outbreak Watch", "early warning for your area") to { app.go(Screen.OUTBREAK) },
-        Triple("🩸", "Anaemia Screen", "15-second fingertip check") to { app.go(Screen.ANAEMIA) },
-        Triple("🦟", "Mosquito Radar", "dengue & malaria alert") to { app.go(Screen.MOSQUITO) },
-        Triple("🛡", "Guardian", "fall alert · offline SOS") to { app.go(Screen.GUARDIAN) },
-        Triple("👨‍👩‍👧", "Family Exposure", "what your child really drinks") to { app.go(Screen.EXPOSURE) },
+    val groups = listOf(
+        "🩺 Health checks" to listOf(
+            Feature(FIcon.HEART, "Pulse", "heart rate", Palette.red) { app.go(Screen.PULSE) },
+            Feature(FIcon.DROP, "Anaemia", "15-second fingertip check", Color(0xFFF472B6)) { app.go(Screen.ANAEMIA) },
+            Feature(FIcon.MOSQUITO, "Mosquito", "dengue & malaria alert", Color(0xFFF43F5E)) { app.go(Screen.MOSQUITO) },
+            Feature(FIcon.SHIELD, "Guardian", "fall alert · offline SOS", Palette.accent) { app.go(Screen.GUARDIAN) },
+        ),
+        "🍳 Kitchen safety" to listOf(
+            Feature(FIcon.POT, "Boil Guard", "safe drinking water", Color(0xFFF97316)) { app.go(Screen.BOIL) },
+            Feature(FIcon.PAN, "Oil Check", "frying-oil reuse", Color(0xFFFDE047)) { app.go(Screen.OIL) },
+            Feature(FIcon.GRAIN, "Grain Scan", "stones · insects · broken", Color(0xFFD9F99D)) { app.go(Screen.GRAIN) },
+            Feature(FIcon.JAR, "Pantry", "${app.pantry.items.size} tracked", Palette.accent) { app.go(Screen.PANTRY) },
+        ),
+        "🌐 Community" to listOf(
+            Feature(FIcon.NETWORK, "Hive", "warn your neighbours", Palette.violet) { app.tab(Screen.COMMUNITY) },
+            Feature(FIcon.SIREN, "Outbreak", "early warning for your area", Palette.red) { app.go(Screen.OUTBREAK) },
+            Feature(FIcon.MILK, "Milkman", "fair monthly milk bill", Color(0xFFE0F2FE)) { app.go(Screen.MILKMAN) },
+            Feature(FIcon.FAMILY, "Family", "what your child really drinks", Palette.blue) { app.go(Screen.EXPOSURE) },
+        ),
+        "🤖 AI & learning" to listOf(
+            Feature(FIcon.BOOK, "Food guide", "16 home tests", Palette.cyan) { app.go(Screen.FOODGUIDE) },
+
+            Feature(FIcon.CHAT, "Ask AI", "recipes · tasks · AI", Palette.blue) { app.go(Screen.ASSISTANT) },
+            Feature(FIcon.EYE, "Vision", "hands · face · objects", Color(0xFFA78BFA)) { app.go(Screen.VISION) },
+            Feature(FIcon.MEDAL, "Badges", "${badges.count { it.unlocked }}/${badges.size}", Palette.amber) { app.go(Screen.BADGES) },
+        ),
     )
-    val colors = listOf(Palette.cyan, Palette.accent, Palette.amber, Palette.red, Color(0xFFA78BFA), Palette.blue, Color(0xFFF97316), Color(0xFFFDE047), Color(0xFFD9F99D), Palette.violet, Palette.red, Color(0xFFF472B6), Color(0xFFF43F5E), Palette.accent, Palette.violet)
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Discover", color = Palette.text, fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-        items.chunked(2).forEachIndexed { r, row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                row.forEachIndexed { c, (t, go) ->
-                    val col = colors[r * 2 + c]
-                    Row(
-                        Modifier.weight(1f).clip(RoundedCornerShape(20.dp)).background(Brush.linearGradient(listOf(col.copy(alpha = 0.22f), col.copy(alpha = 0.05f))))
-                            .border(1.dp, col.copy(alpha = 0.35f), RoundedCornerShape(20.dp)).clickable { go() }.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(t.first, fontSize = 24.sp); Spacer(Modifier.width(10.dp))
-                        Column {
-                            Text(tr(t.second), color = Palette.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                            Text(tr(t.third), color = Palette.muted, fontSize = 11.sp)
-                        }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(tr("Discover"), color = Palette.text, fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+        groups.forEachIndexed { gi, (title, items) ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(tr(title.substringAfter(" ")).let { "${title.substringBefore(" ")} $it" }, color = Palette.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                // Fixed 4-column grid — every feature visible, no sideways scrolling, identical tile sizes.
+                items.chunked(4).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        row.forEachIndexed { i, f -> FeatureCard(f, Modifier.weight(1f).enter((gi + i).coerceAtMost(8))) }
+                        repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun FeatureCard(f: Feature, modifier: Modifier) {
+    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.9f else 1f, label = "fc")
+    Column(
+        modifier.graphicsLayer { scaleX = scale; scaleY = scale }.clip(RoundedCornerShape(18.dp)).clickable(src, null, onClick = f.go).padding(vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(
+            Modifier.size(62.dp).clip(RoundedCornerShape(20.dp))
+                .background(Brush.linearGradient(listOf(f.color.copy(alpha = 0.34f), f.color.copy(alpha = 0.08f))))
+                .border(1.dp, f.color.copy(alpha = 0.45f), RoundedCornerShape(20.dp)),
+            contentAlignment = Alignment.Center,
+        ) { FeatureIcon(f.icon, f.color, 34.dp) }
+        Text(tr(f.title), color = Palette.text, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, maxLines = 2, lineHeight = 13.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+
+/** "Why India needs this" — the scale of the problem, with animated counters. */
+@Composable
+private fun WhyIndiaCard(modifier: Modifier) {
+    val a = remember { androidx.compose.animation.core.Animatable(0f) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { a.animateTo(1f, androidx.compose.animation.core.tween(1800, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
+    Glass(modifier, glow = Palette.red, padding = 16) {
+        Text(tr("Why India needs this"), color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 17.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(Triple((223808 * a.value).toInt(), "food samples tested", Palette.cyan), Triple((40023 * a.value).toInt(), "failed (17.9%)", Palette.red), Triple((1918 * a.value).toInt(), "convictions", Palette.amber)).forEach { (n, l, c) ->
+                Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(c.copy(alpha = 0.1f)).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("%,d".format(n), color = c, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 17.sp, maxLines = 1)
+                    Text(tr(l), color = Palette.muted, fontSize = 10.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, lineHeight = 12.sp)
+                }
+            }
+        }
+        // 1 in 6 samples failing, drawn as a row of 6 bottles.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            repeat(6) { i -> FeatureIcon(FIcon.MILK, if (i == 5) Palette.red else Palette.accent, 26.dp); Spacer(Modifier.width(4.dp)) }
+            Text(tr("≈ 1 in 6 food samples failed safety tests in 2025-26 — and only ~1 in 20 failures led to a conviction. Families need to check for themselves."),
+                color = Palette.text, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.weight(1f).padding(start = 6.dp))
+        }
+        Text("Source: FSSAI data in Lok Sabha reply, July 2026 (provisional).", color = Palette.muted, fontSize = 10.sp)
     }
 }

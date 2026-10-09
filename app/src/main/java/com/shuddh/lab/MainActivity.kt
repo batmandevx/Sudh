@@ -187,6 +187,7 @@ private fun Root(app: AppState) {
                     Screen.MOSQUITO -> com.shuddh.lab.instruments.MosquitoScreen(app)
                     Screen.GUARDIAN -> com.shuddh.lab.ui.GuardianScreen(app)
                     Screen.EXPOSURE -> com.shuddh.lab.ui.ExposureScreen(app)
+                    Screen.MILKMAN -> com.shuddh.lab.ui.MilkmanScreen(app)
                     Screen.STRIP -> StripScreen(app)
                     Screen.SCATTER -> ScatterScreen(app)
                     Screen.FLOAT -> FloatScreen(app)

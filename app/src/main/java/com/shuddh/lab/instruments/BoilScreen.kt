@@ -98,6 +98,10 @@ fun BoilScreen(app: AppState) {
     var rise by remember { mutableFloatStateOf(0f) }
     val levels = remember { mutableStateListOf<Float>() }
     var hPa by remember { mutableStateOf<Double?>(null) }
+    // Phones without a barometer (e.g. iQOO 15): the user picks their altitude; pressure follows from the standard atmosphere.
+    val hasBaro = remember { (ctx.getSystemService(Context.SENSOR_SERVICE) as SensorManager).getDefaultSensor(Sensor.TYPE_PRESSURE) != null }
+    var manualAlt by remember { mutableStateOf(app.prefs.double("boil_alt") ?: 0.0) }
+    LaunchedEffect(hasBaro, manualAlt) { if (!hasBaro) hPa = 1013.25 * Math.pow(1 - 2.25577e-5 * manualAlt, 5.25588) }
     var boilStart by remember { mutableStateOf(0L) }
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     var safeDone by remember { mutableStateOf(false) }
@@ -171,9 +175,14 @@ fun BoilScreen(app: AppState) {
             }
         }
         Section("Your altitude & boiling point") {
-            if (hPa == null) Note("No barometer on this phone — assuming sea level (100 °C, 1-minute boil).")
-            else Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Stat3("🧭", "${fmt(hPa!!)} hPa", "air pressure", Modifier.weight(1f))
+            if (!hasBaro) {
+                Note("No barometer on this phone — pick your altitude (city height):")
+                com.shuddh.lab.ui.Chips(listOf(0.0, 500.0, 920.0, 1500.0, 2000.0, 3000.0), manualAlt, { if (it == 920.0) "920 m (Bengaluru)" else "${it.toInt()} m" }) {
+                    manualAlt = it; app.prefs.putDouble("boil_alt", it)
+                }
+            }
+            if (hPa != null) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Stat3("🧭", "${fmt(hPa!!)} hPa", if (hasBaro) "air pressure" else "estimated", Modifier.weight(1f))
                 Stat3("⛰", "${altitude!!.toInt()} m", "altitude", Modifier.weight(1f))
                 Stat3("🌡", "${fmt(bp!!)} °C", "water boils at", Modifier.weight(1f))
             }

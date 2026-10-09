@@ -140,7 +140,7 @@ fun MagnetoScreen(app: AppState) {
         ev += Evidence("PATTERN", "Thresholds: <8 µT non-magnetic · 8–40 weak · >40 strong (utensil touching the phone's top edge)")
         ev += Evidence("HYPOTHESIS", label.en.lowercase().replaceFirstChar { it.uppercase() }, lvl == Level.SAFE)
         return Outcome("Shuddh Magneto", "magneto", magName, peak.toDouble(), "µT", lvl, "Peak disturbance ${fmt(peak.toDouble())} µT", adv, ev,
-            "Magnetism screens steel grade; it can't detect coatings or lead. Thick-base pans may have a magnetic plate for induction.", levelLabel = label)
+            "A grade hint, not a safety verdict: cold-worked 304 can be slightly magnetic and ferritic 430 (magnetic) is common in cutlery. Magnetism screens steel grade; it can't detect coatings or lead. Thick-base pans may have a magnetic plate for induction.", levelLabel = label)
     }
 
     ScreenFrame("Shuddh Magneto", "Compass sensor → is this steel food-grade?", onBack = { app.back() }) {

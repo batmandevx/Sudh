@@ -98,7 +98,38 @@ object Analytes {
         presenceThreshold = 0.10,
     ) { a -> presenceJudge(a, 0.10) }
 
-    val spectrum = listOf(chlorine, nitrate, iron, fluoride, detergent, starch, urea)
+    /**
+     * Lead chromate in turmeric (haldi). Lead chromate (PbCrO4) is added to make turmeric brighter
+     * yellow. Acidified 1,5-diphenylcarbazide turns magenta with its hexavalent chromium (λmax ≈ 540 nm)
+     * — a screening proxy for lead-chromate adulteration (Lopez et al., Stanford, ES&T 2022). It does
+     * not measure lead itself and catches heavy adulteration, not samples just over the 10 µg/g limit.
+     */
+    val leadChromate = Analyte(
+        "haldi_pbcr", Txt("Lead chromate in turmeric", "हल्दी में लेड क्रोमेट", "ಅರಿಶಿನದಲ್ಲಿ ಲೆಡ್ ಕ್ರೋಮೇಟ್", "పసుపులో లెడ్ క్రోమేట్", "மஞ்சளில் லெட் குரோமேட்"), "Turmeric",
+        "Acidified 1,5-diphenylcarbazide (magenta with Cr(VI))", 540.0, Kind.PRESENCE, "AU",
+        "Screening proxy for lead chromate (Cr(VI)); confirm with a lab lead test. FSSAI lead limit in turmeric: 10 µg/g. Reference = known-pure turmeric through the same test.",
+        presenceThreshold = 0.10,
+    ) { a -> presenceJudge(a, 0.10) }
+
+    /**
+     * Iodized salt check. Iodate in salt + acid (lemon) + starch → iodine–starch blue (λmax ≈ 600 nm).
+     * Here colour is GOOD: blue = iodized; no blue = not iodized (fake "iodized" label) — a common
+     * consumer fraud that drives iodine-deficiency disorders.
+     */
+    val iodine = Analyte(
+        "salt_iodine", Txt("Iodine in salt", "नमक में आयोडीन", "ಉಪ್ಪಿನಲ್ಲಿ ಅಯೋಡಿನ್", "ఉప్పులో అయోడిన్", "உப்பில் அயோடின்"), "Salt",
+        "Starch + lemon juice (blue with iodate)", 600.0, Kind.PRESENCE, "AU",
+        "FSSAI: iodized salt must carry ≥15 ppm iodine at the retail level. Reference = the same salt + lemon only (no starch). A faint blue suggests under-iodization.",
+        presenceThreshold = 0.08,
+    ) { a ->
+        when {
+            a >= 0.2 -> Level.SAFE to listOf(Txt("Salt is iodized.", "नमक में आयोडीन है।", "ಉಪ್ಪು ಅಯೋಡಿನ್ ಯುಕ್ತವಾಗಿದೆ.", "ఉప్పులో అయోడిన్ ఉంది.", "உப்பில் அயோடின் உள்ளது."))
+            a >= 0.08 -> Level.CAUTION to listOf(Txt("Weak iodine — may be under-iodized. Store salt closed, away from heat.", "आयोडीन कम है। नमक ढककर रखें।", "ಅಯೋಡಿನ್ ಕಡಿಮೆ. ಉಪ್ಪನ್ನು ಮುಚ್ಚಿಡಿ.", "అయోడిన్ తక్కువ. ఉప్పును మూసి ఉంచండి.", "அயோடின் குறைவு. உப்பை மூடி வைக்கவும்."))
+            else -> Level.UNSAFE to listOf(Txt("No iodine found — this salt is not iodized despite the label. Report the brand.", "आयोडीन नहीं मिला — लेबल गलत है। ब्रांड की शिकायत करें।", "ಅಯೋಡಿನ್ ಇಲ್ಲ — ಲೇಬಲ್ ತಪ್ಪು. ದೂರು ನೀಡಿ.", "అయోడిన్ లేదు — లేబుల్ తప్పు. ఫిర్యాదు చేయండి.", "அயோடின் இல்லை — லேபிள் தவறு. புகார் செய்யவும்."))
+        }
+    }
+
+    val spectrum = listOf(chlorine, nitrate, iron, fluoride, detergent, starch, urea, leadChromate, iodine)
 
     fun byId(id: String) = spectrum.firstOrNull { it.id == id }
 

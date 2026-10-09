@@ -198,7 +198,7 @@ fun PolarScreen(app: AppState) {
         }
         HowItWorks(listOf(
             "Polarised light vibrates in one plane. Sugars twist that plane — fructose to the left, sucrose to the right.",
-            "Pure honey is fructose-rich (left-turning). Cane-sugar syrup is sucrose (right-turning), so mixing it in shifts the rotation.",
+            "Pure honey is fructose-rich (left-turning). Cane-sugar syrup is sucrose (right-turning), so mixing it in shifts the rotation. Result = distance from YOUR saved pure-honey reference — inverted or high-fructose syrups can mimic honey, and dark honey depolarises light.",
             "The phone is the second polariser: as you turn it, brightness follows Malus’s law, I = A + B·cos²(θ−φ). The fit finds φ to a fraction of a degree.",
             "Rotation = φ(sample) − φ(blank). Comparing with your pure-honey and syrup references gives the syrup fraction.",
         ))
