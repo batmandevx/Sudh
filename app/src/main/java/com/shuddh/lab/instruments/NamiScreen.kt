@@ -137,11 +137,15 @@ private val surfaces = listOf(
 
 private val namiName = Txt("Surface moisture", "सतह की नमी", "ಮೇಲ್ಮೈ ತೇವಾಂಶ")
 
-private fun loadRef(p: Prefs, key: String): Pair<FloatArray, Int>? = p.json(key)?.let { o ->
+/** Reference format version — bumped when capture changed (volume lock, gating), so stale references are ignored. */
+private const val REF_VERSION = 2
+
+private fun loadRef(p: Prefs, key: String): Pair<FloatArray, Int>? = p.json(key)?.takeIf { it.optInt("v") == REF_VERSION }?.let { o ->
     val a = o.getJSONArray("b"); FloatArray(a.length()) { a.getDouble(it).toFloat() } to o.optInt("n", 1)
 }
+private fun staleRef(p: Prefs, key: String) = p.json(key)?.let { it.optInt("v") != REF_VERSION } ?: false
 private fun saveRef(p: Prefs, key: String, v: FloatArray, n: Int) =
-    p.putJson(key, org.json.JSONObject().put("b", JSONArray(v.map { it.toDouble() })).put("n", n))
+    p.putJson(key, org.json.JSONObject().put("b", JSONArray(v.map { it.toDouble() })).put("n", n).put("v", REF_VERSION))
 
 /** Running average: each "Add" folds the new reading into the stored reference. */
 private fun accumulate(old: Pair<FloatArray, Int>?, new: FloatArray): Pair<FloatArray, Int> =
@@ -196,14 +200,20 @@ fun NamiScreen(app: AppState) {
         val reads = mutableListOf<Sonar.Reading>()
         try {
             var attempts = 0
+            val moved = mutableListOf<Sonar.Reading>()
             while (reads.size < 3 && attempts < 6) {
                 attempts++
                 progress = reads.size + 1
-                Haptics.ping(ctx)
-                val steadyBefore = motion.steady
+                // Movement = the phone's orientation changing during the ping. (The accelerometer's
+                // "shake" can't be used here: the speaker's own chirps vibrate the phone.)
+                val tx = motion.tiltX; val ty = motion.tiltY
                 val r = withContext(Dispatchers.Default) { runCatching { Sonar.analyse(Sonar.capture(ctx)) }.getOrNull() }
-                if (steadyBefore && motion.steady) { if (r != null) reads += r } else shakenDuring = true
+                val still = kotlin.math.abs(motion.tiltX - tx) < 8f && kotlin.math.abs(motion.tiltY - ty) < 8f
+                if (r != null) { if (still) reads += r else { moved += r; shakenDuring = true } }
             }
+            // Never fail just because the phone was handled: fall back to the moved pings (flagged in the quality chips).
+            if (reads.size < 3) reads += moved.take(3 - reads.size)
+            Haptics.ping(ctx)
             // If the phone never settled, keep what we have rather than nothing.
         } finally {
             runCatching { am.setStreamVolume(stream, before, 0) }
@@ -253,7 +263,10 @@ fun NamiScreen(app: AppState) {
             val d = dry; val w = wet
             if (r != null) {
                 android.util.Log.d("Nami", "tilt=${fmt(Sonar.tilt(r.bands))} bands=${r.bands.joinToString { fmt(it.toDouble()) }} noise=${fmt(r.noiseDb)}")
-                val (t, _, _) = if (d != null && w != null) Sonar.moistureStats(r, d.first, w.first) else Sonar.quickEstimate(r, air)
+                val ax = air
+                val (t, _, _) = if (d != null && w != null) {
+                    if (ax != null) Sonar.moistureStats(Sonar.echo(r, ax), Sonar.echo(d.first, ax), Sonar.echo(w.first, ax)) else Sonar.moistureStats(r, d.first, w.first)
+                } else Sonar.quickEstimate(r, air)
                 val (_, label, adv) = surface.judge(t.coerceIn(0.0, 1.0))
                 Haptics.rumble(ctx, t.toFloat().coerceIn(0f, 1f)) // feel the wetness
                 say("${label.get(app.lang)}. ${(t * 100).coerceIn(0.0, 100.0).toInt()} %. ${adv.firstOrNull()?.get(app.lang) ?: ""}")
@@ -261,8 +274,12 @@ fun NamiScreen(app: AppState) {
         }
     }
 
-    val stats = reading?.let { r -> val d = dry; val w = wet; if (d != null && w != null) Sonar.moistureStats(r, d.first, w.first) else null }
-    val off = reading?.let { r -> val d = dry; val w = wet; if (d != null && w != null) Sonar.moisture(r.bands, d.first, w.first, Sonar.weights(r)).second else null }
+    // With an open-air calibration, compare surface *echoes* (direct speaker→mic sound removed).
+    fun e(r: Sonar.Reading) = air?.let { Sonar.echo(r, it) } ?: r
+    fun e(b: FloatArray) = air?.let { Sonar.echo(b, it) } ?: b
+    val stats = reading?.let { r -> val d = dry; val w = wet; if (d != null && w != null) Sonar.moistureStats(e(r), e(d.first), e(w.first)) else null }
+    val off = reading?.let { r -> val d = dry; val w = wet; if (d != null && w != null) Sonar.moisture(e(r).bands, e(d.first), e(w.first), Sonar.weights(e(r))).second else null }
+    val stale = remember(surface) { staleRef(app.prefs, "nami_${surface.id}_dry") || staleRef(app.prefs, "nami_${surface.id}_wet") || staleRef(app.prefs, "nami_air") }
     val quick = reading?.takeIf { stats == null }?.let { Sonar.quickEstimate(it, air) }
     val shown = stats ?: quick
     val accuracy: Pair<String, Color> = when {
@@ -315,7 +332,9 @@ fun NamiScreen(app: AppState) {
     }
 
     ScreenFrame("Shuddh Nami", "Speaker + mic sonar → surface moisture", onBack = { app.back() }) {
-        StepTracker(listOf("Dry ref" to (dry != null), "Wet ref" to (wet != null), "Ping surface" to (reading != null && stats != null), "Verdict" to false))
+        StepTracker(listOf("Air calib" to (air != null), "Dry ref" to (dry != null), "Wet ref" to (wet != null), "Ping" to (reading != null && stats != null)))
+        if (stale) Note("⚙️ Accuracy upgrade: your old references were measured the old way and have been set aside. Calibrate in air once, then record DRY and WET again (2 each).", Palette.amber)
+        if (air == null) Note("For accurate readings, do the one-time phone calibration below first: hold the phone up in open air and tap Calibrate.", Palette.cyan)
         Chips(surfaces, surface, { it.name.en }) { surface = it; reading = null }
         OnWave(motion) { if (!busy) ping() }
 

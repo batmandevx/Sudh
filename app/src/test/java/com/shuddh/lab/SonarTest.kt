@@ -78,3 +78,19 @@ class SonarTest {
         assertTrue(dry < 0.2 && wet > 0.8)
     }
 }
+
+class SonarEchoTest {
+    @org.junit.Test fun echoRemovesDirectPath() {
+        val air = FloatArray(com.shuddh.lab.core.Sonar.BANDS) { -20f }           // direct path only
+        // Surface adds a reflection 10 dB below the direct sound in every band.
+        val refl = 10 * kotlin.math.log10(Math.pow(10.0, -2.0) + Math.pow(10.0, -3.0)).toFloat()
+        val withSurface = FloatArray(com.shuddh.lab.core.Sonar.BANDS) { refl }
+        val e = com.shuddh.lab.core.Sonar.echo(withSurface, air)
+        e.forEach { org.junit.Assert.assertEquals(-30.0, it.toDouble(), 0.01) }
+        // A wetter surface reflecting 3 dB more is now a clear 3 dB change, not a 0.4 dB ripple on the raw signal.
+        val wetter = FloatArray(com.shuddh.lab.core.Sonar.BANDS) { 10 * kotlin.math.log10(Math.pow(10.0, -2.0) + 2 * Math.pow(10.0, -3.0)).toFloat() }
+        val rawDelta = wetter[0] - withSurface[0]
+        val echoDelta = com.shuddh.lab.core.Sonar.echo(wetter, air)[0] - e[0]
+        org.junit.Assert.assertTrue("raw $rawDelta echo $echoDelta", echoDelta > 2.9 && rawDelta < 0.5)
+    }
+}

@@ -12,6 +12,7 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.log10
 import kotlin.math.max
+import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -256,6 +257,19 @@ object Sonar {
         val off = sqrt(d.indices.sumOf { wt[it] * (v[it] - t * d[it]).let { e2 -> e2 * e2 } } / ws)
         return t to off
     }
+
+    /**
+     * Surface echo only: the mic hears the direct speaker→mic sound plus the surface reflection.
+     * Subtracting the open-air capture *in power* removes the direct path and the phone's own
+     * speaker/mic colouring, leaving the reflection — far more sensitive to the surface's state.
+     * Bands where the reflection is below 5 % of the direct power are floored (not trusted).
+     */
+    fun echo(bands: FloatArray, air: FloatArray): FloatArray = FloatArray(BANDS) { b ->
+        val pr = 10.0.pow(bands[b] / 10.0); val pa = 10.0.pow(air[b] / 10.0)
+        (10 * log10(maxOf(pr - pa, 0.05 * pa))).toFloat()
+    }
+
+    fun echo(r: Reading, air: FloatArray): Reading = r.copy(bands = echo(r.bands, air), perChirp = r.perChirp.map { echo(it, air) })
 
     /** High-band (10–18 kHz) minus low-band (2–8 kHz) echo level, dB. Water in pores lifts the high bands. */
     fun tilt(bands: FloatArray, w: DoubleArray? = null): Double {
