@@ -19,7 +19,7 @@ import kotlin.coroutines.resumeWithException
 /** On-device language models (MediaPipe .task bundles). PRO, when installed, replaces CHAT for answers. */
 enum class ModelRole(val file: String, val title: String, val job: String, val temperature: Float, val topK: Int, val maxTokens: Int) {
     CHAT("shuddh-chat.task", "Qwen2.5-1.5B Instruct", "Chat · explains results in your language", 0.6f, 40, 1280),
-    TOOLS("shuddh-tools.task", "Qwen2.5-0.5B Instruct", "Tool router · picks which app function to call", 0.05f, 1, 2048),
+    TOOLS("shuddh-tools.task", "Qwen2.5-0.5B Instruct", "Tool router · picks which app function to call", 0.05f, 1, 1280),
     PRO("shuddh-pro.task", "Phi-4-mini Instruct 3.8B", "Pro chat · recipes, writing, reasoning — used instead of Qwen 1.5B when installed", 0.5f, 40, 4096),
     MINICPM("shuddh-minicpm.litertlm", "MiniCPM5-2B (int4)", "Chat · OpenBMB MiniCPM5 via LiteRT-LM — fast, capable, multilingual", 0.6f, 40, 4096),
 }

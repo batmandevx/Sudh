@@ -153,45 +153,22 @@ object Agent {
     )
 
     fun routerPrompt(question: String, hasImage: Boolean, context: String = ""): String {
-        val list = tools.joinToString("\n") { "- ${it.name}(${it.args}): ${it.desc}" }
-        val system = """You are the function router of the Shuddh food-safety app. Pick exactly ONE tool for the user's message.
-Reply with ONLY a JSON object, no other text. Format: {"tool":"<name>","args":{...}}
+        // Kept compact: the 0.5B router's .task has a ~1.2k-token context, so tool docs are one short
+        // line each and only the most confusable cases get an example.
+        val list = tools.joinToString("\n") { "${it.name}(${it.args}): ${it.desc.substringBefore(",").take(48)}" }
+        val system = """Pick ONE tool for the user's message. Reply ONLY with JSON: {"tool":"<name>","args":{...}}
 Tools:
 $list
 Examples:
-User: hi -> {"tool":"none","args":{}}
-User: thanks -> {"tool":"none","args":{}}
-User: who are you -> {"tool":"none","args":{}}
-User: has ramesh dairy failed before? -> {"tool":"vendor_history","args":{"vendor":"ramesh dairy"}}
-User: why is nitrate bad -> {"tool":"contaminant_info","args":{"name":"nitrate"}}
-User: I want to check my honey -> {"tool":"open_instrument","args":{"name":"polar"}}
-User: tell everyone nearby the tap water is dirty -> {"tool":"mesh_send","args":{"text":"the tap water is dirty"}}
-User: how is my kitchen -> {"tool":"kitchen_score","args":{}}
-User: what time is it? -> {"tool":"phone_status","args":{}}
-User: how much battery do I have? -> {"tool":"phone_status","args":{}}
-User: what should I check today? -> {"tool":"safety_brief","args":{}}
-User: set a timer for 10 minutes to boil the water -> {"tool":"set_timer","args":{"duration":"10 minutes","label":"boil the water"}}
-User: wake me up at 6:30 am -> {"tool":"set_alarm","args":{"time":"6:30 am","label":"wake up"}}
-User: remind me to buy milk at 7 pm -> {"tool":"set_alarm","args":{"time":"7 pm","label":"buy milk"}}
-User: turn on the flashlight -> {"tool":"flashlight","args":{"state":"on"}}
-User: make a qr code for 9876543210 -> {"tool":"generate_qr","args":{"text":"9876543210"}}
-User: tell my family the milk is adulterated -> {"tool":"message_family","args":{"text":"the milk is adulterated"}}
-User: count 3 cooker whistles -> {"tool":"whistle_counter","args":{"count":"3"}}
-User: find my photos of honey jars -> {"tool":"search_photos","args":{"query":"honey jars"}}
-User: give me a recipe for paneer butter masala -> {"tool":"recipe","args":{"dish":"paneer butter masala"}}
-User: how do I make masala chai -> {"tool":"recipe","args":{"dish":"masala chai"}}
-User: what is 18% of 2450 -> {"tool":"calculate","args":{"expression":"18% of 2450"}}
-User: convert 2 cups to ml -> {"tool":"convert_units","args":{"query":"2 cups to ml"}}
-User: add a meeting with the doctor tomorrow at 5 pm -> {"tool":"add_event","args":{"title":"meeting with the doctor","time":"tomorrow 5 pm"}}
-User: note that the gas cylinder was booked -> {"tool":"save_note","args":{"text":"the gas cylinder was booked"}}
-User: add milk and eggs to my shopping list -> {"tool":"shopping_add","args":{"items":"milk, eggs"}}
-User: open youtube -> {"tool":"open_app","args":{"name":"youtube"}}
-User: call 9876543210 -> {"tool":"call","args":{"number":"9876543210"}}
-User: detect my hand gestures -> {"tool":"open_vision","args":{}}
-User: explain photosynthesis simply -> {"tool":"general","args":{}}
-User: write a birthday wish for my mom -> {"tool":"general","args":{}}
-User: hello -> {"tool":"none","args":{}}""" +
-            (if (context.isNotBlank()) "\nRecent local conversation for resolving follow-ups:\n$context" else "") +
+hi -> {"tool":"none","args":{}}
+has ramesh dairy failed before? -> {"tool":"vendor_history","args":{"vendor":"ramesh dairy"}}
+I want to check my honey -> {"tool":"open_instrument","args":{"name":"polar"}}
+set a timer for 10 minutes -> {"tool":"set_timer","args":{"duration":"10 minutes","label":"timer"}}
+wake me up at 6:30 am -> {"tool":"set_alarm","args":{"time":"6:30 am","label":"wake up"}}
+recipe for masala chai -> {"tool":"recipe","args":{"dish":"masala chai"}}
+open youtube -> {"tool":"open_app","args":{"name":"youtube"}}
+explain photosynthesis -> {"tool":"general","args":{}}""" +
+            (if (context.isNotBlank()) "\nRecent conversation:\n${context.takeLast(300)}" else "") +
             if (hasImage) "\nA photo is attached; questions about it use analyze_image." else ""
         return LocalLlm.chatml(system, question)
     }

@@ -97,6 +97,13 @@ fun PulseScreen(app: AppState) {
     val haptic = LocalHapticFeedback.current
     val view = LocalView.current
     val samples = remember { Samples() }
+    // Green channel kept too: under the flash it often carries a cleaner pulse than (near-saturated) red.
+    val samplesG = remember { Samples() }
+    /** Analyses red and green, returns the more periodic (higher-quality) result. */
+    fun best(t0: Double): Ppg.Result? {
+        val (t, v) = samples.since(t0); val (tg, vg) = samplesG.since(t0)
+        return listOfNotNull(Ppg.analyse(t, v), Ppg.analyse(tg, vg)).maxByOrNull { it.quality }
+    }
     var phase by remember { mutableStateOf(Phase.IDLE) }
     var finger by remember { mutableStateOf(false) }
     val deb = remember { IntArray(3) } // streak, lastRaw, debounced
@@ -133,7 +140,7 @@ fun PulseScreen(app: AppState) {
                 say(Txt("Good. Hold still and breathe normally.", "बढ़िया। स्थिर रहें और सामान्य साँस लें।", "ಒಳ್ಳೆಯದು. ಅಲುಗಾಡದೆ ಸಾಮಾನ್ಯವಾಗಿ ಉಸಿರಾಡಿ."))
                 delay(2500)
                 cam.lock(true)
-                samples.clear(); wave.clear(); liveBpm = null; bpmKf.reset()
+                samples.clear(); samplesG.clear(); wave.clear(); liveBpm = null; bpmKf.reset()
                 startT = System.nanoTime() / 1e9
                 phase = Phase.MEASURE
             }
@@ -152,12 +159,10 @@ fun PulseScreen(app: AppState) {
             delay(250)
             val now = System.nanoTime() / 1e9
             progress = ((now - startT) / MEASURE_S).toFloat().coerceIn(0f, 1f)
-            val (t, v) = samples.since(now - 10)
-            Ppg.analyse(t, v)?.takeIf { it.quality > 0.25 }?.let { liveBpm = bpmKf.update(it.bpm, 4.0 + 40.0 * (1 - it.quality)) }
+            best(now - 10)?.takeIf { it.quality > 0.25 }?.let { liveBpm = bpmKf.update(it.bpm, 4.0 + 40.0 * (1 - it.quality)) }
             if (!spokeHalf && progress > 0.5f) { spokeHalf = true; say(Txt("Halfway there.", "आधा हो गया।", "ಅರ್ಧ ಆಯಿತು.")) }
             if (progress >= 1f) {
-                val (tt, vv) = samples.since(startT)
-                val r = Ppg.analyse(tt, vv)
+                val r = best(startT)
                 result = r; phase = Phase.DONE; cam.lock(false); cam.torch(false)
                 if (r != null && r.quality > 0.2) {
                     history = saveHistory(app, r)
@@ -205,7 +210,7 @@ fun PulseScreen(app: AppState) {
                             val v = if (c.r < 245f) c.r.toDouble() else c.g.toDouble()
                             android.os.Handler(android.os.Looper.getMainLooper()).post { finger = on }
                             if (on) {
-                                samples.add(t, v)
+                                samples.add(t, v); samplesG.add(t, c.g.toDouble())
                                 det.push(t, v)?.let { android.os.Handler(android.os.Looper.getMainLooper()).post { beatTick++ } }
                                 val y = det.display()
                                 android.os.Handler(android.os.Looper.getMainLooper()).post { wave.add(y); if (wave.size > 180) wave.removeAt(0) }

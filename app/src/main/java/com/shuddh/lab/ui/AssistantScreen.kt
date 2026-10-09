@@ -153,7 +153,7 @@ fun AssistantScreen(app: AppState) {
                         val raw = runCatching { llm.generate(ModelRole.TOOLS, Agent.routerPrompt(sub, hasImg, context)) }.getOrDefault("")
                         // Deterministic tools (maths, units, recipes…) win over a shaky small-model pick.
                         val rule = Agent.ruleRoute(sub, hasImg)
-                        if (rule.name in setOf("calculate", "convert_units", "recipe", "shopping_add", "shopping_show", "save_note", "show_notes", "call", "add_event", "open_vision")) rule
+                        if (rule.name in setOf("calculate", "convert_units", "recipe", "shopping_add", "shopping_show", "save_note", "show_notes", "call", "add_event", "open_vision", "open_instrument", "vendor_history", "set_timer", "set_alarm", "flashlight", "whistle_counter", "set_language", "phone_status", "open_app")) rule
                         else Agent.parse(raw, sub, hasImg)
                     } else {
                         a.engine = "rule router"; Agent.ruleRoute(sub, hasImg)
@@ -225,11 +225,35 @@ fun AssistantScreen(app: AppState) {
         }
     }
 
-    val recognizer = remember {
-        when {
-            onDevice && Build.VERSION.SDK_INT >= 33 -> SpeechRecognizer.createOnDeviceSpeechRecognizer(ctx)
-            available -> SpeechRecognizer.createSpeechRecognizer(ctx)
-            else -> null
+    // Speech engine stage: 0 = on-device recogniser, 1 = standard recogniser, 2 = system voice popup.
+    // Some phones (e.g. iQOO / OriginOS) advertise on-device recognition but fail with ERROR_CLIENT (5);
+    // on such errors we move to the next stage, retry immediately, and remember what works.
+    val firstStage = if (onDevice && Build.VERSION.SDK_INT >= 33) 0 else if (available) 1 else 2
+    var stage by remember { androidx.compose.runtime.mutableIntStateOf(app.prefs.json("speech_stage")?.optInt("s", firstStage)?.coerceAtLeast(firstStage) ?: firstStage) }
+    var pendingRetry by remember { mutableStateOf(false) }
+    val recognizer = remember(stage) {
+        runCatching {
+            when (stage) {
+                0 -> SpeechRecognizer.createOnDeviceSpeechRecognizer(ctx)
+                1 -> SpeechRecognizer.createSpeechRecognizer(ctx)
+                else -> null
+            }
+        }.getOrNull()
+    }
+    fun langTag() = when (app.lang) { Lang.HI -> "hi-IN"; Lang.KN -> "kn-IN"; Lang.TE -> "te-IN"; Lang.TA -> "ta-IN"; Lang.EN -> "en-IN" }
+    fun speechIntent(offline: Boolean) = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+        .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        .putExtra(RecognizerIntent.EXTRA_LANGUAGE, langTag())
+        .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, offline)
+        .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+        .putExtra(RecognizerIntent.EXTRA_PROMPT, "Ask Shuddh…")
+    val voicePopup = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
+        res.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let { ask(it) }
+    }
+    fun advance() {
+        if (stage < 2) {
+            stage += 1; pendingRetry = true
+            app.prefs.putJson("speech_stage", org.json.JSONObject().put("s", stage))
         }
     }
     DisposableEffect(recognizer) {
@@ -241,7 +265,12 @@ fun AssistantScreen(app: AppState) {
             override fun onEndOfSpeech() { listening = false; level = 0f }
             override fun onError(error: Int) {
                 listening = false; level = 0f
-                if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) ctx.toastLong("Speech recogniser error $error — type instead")
+                when (error) {
+                    SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> ctx.toastLong("Didn't catch that — tap the mic and speak again")
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> ctx.toastLong("Microphone permission is needed")
+                    // Client / service / language errors: fall back to the next speech engine and retry.
+                    else -> advance()
+                }
             }
             override fun onResults(results: Bundle?) {
                 listening = false; level = 0f
@@ -255,17 +284,14 @@ fun AssistantScreen(app: AppState) {
 
     fun mic() {
         if (ctx.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) { ctx.toastLong("Microphone permission is needed"); return }
-        val r = recognizer ?: run { ctx.toastLong("No speech recogniser — type instead"); return }
-        if (listening) { r.stopListening(); return }
-        val tag = when (app.lang) { Lang.HI -> "hi-IN"; Lang.KN -> "kn-IN"; Lang.TE -> "te-IN"; Lang.TA -> "ta-IN"; Lang.EN -> "en-IN" }
-        r.startListening(
-            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE, tag)
-                .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-                .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true),
-        )
+        if (stage >= 2 || recognizer == null) {
+            runCatching { voicePopup.launch(speechIntent(offline = false)) }.onFailure { ctx.toastLong("No speech service on this phone — install Google voice typing, or type instead") }
+            return
+        }
+        if (listening) { recognizer.stopListening(); return }
+        runCatching { recognizer.startListening(speechIntent(offline = stage == 0)) }.onFailure { advance() }
     }
+    androidx.compose.runtime.LaunchedEffect(stage) { if (pendingRetry) { pendingRetry = false; kotlinx.coroutines.delay(200); mic() } }
 
     // Pre-load both models in the background so the first answer isn't slowed by loading.
     androidx.compose.runtime.LaunchedEffect(Unit) {
