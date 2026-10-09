@@ -14,3 +14,7 @@ local.properties
 *.jks
 # Personal planning notes — not part of the app
 idea
+
+# ML models — fetched by scripts/fetch_models.sh
+app/src/main/assets/*.tflite
+app/src/main/assets/*.task

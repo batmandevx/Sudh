@@ -4,6 +4,18 @@ An offline phone lab for testing milk, water, honey, air and produce. It uses th
 
 AI and lab processing run on the phone. Optional maps and assistant web search use the internet; their switches are off by default.
 
+## Quick setup (build from source)
+
+```bash
+git clone https://github.com/batmandevx/Sudh.git && cd Sudh
+./scripts/fetch_models.sh          # downloads the 6 public MediaPipe models into app/src/main/assets
+./gradlew assembleDebug            # JDK 17, Android SDK 35
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Optional on-device LLMs (Qwen2.5-1.5B / 0.5B, Phi-4-mini `.task`) are pushed to
+`/sdcard/Android/data/com.shuddh.lab/files/models/` — see **AI Models** in the app for the exact file names.
+
 ## Assistant web search (v3.6)
 
 Enable **Web access** in Ask Shuddh (or Settings → Privacy dashboard), then select **Search web** before sending any query, or say “Search the web for …”. Results include source titles, excerpts, links and a fetch time. The fetch time is not the page's publication date. Failure and empty-result states offer a browser search; no answer is fabricated.
