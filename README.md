@@ -3,7 +3,7 @@
 > 📲 **Download the app:** [Shuddh-v5.1.apk](https://github.com/batmandevx/Sudh/releases/download/v5.1/Shuddh-v5.1.apk) (Android 8+, arm64, 72 MB) · [all releases](https://github.com/batmandevx/Sudh/releases)
 
 
-An offline phone lab for testing milk, water, honey, air and produce. It uses the phone's flash, camera, IR blaster, gyroscope, mic and vibration motor as measuring instruments. Verdicts are spoken in English, Hindi or Kannada, and the app stores a hash-chained history on the phone.
+An offline phone lab for testing milk, water, honey, air and produce. It uses the phone's flash, camera, IR blaster, gyroscope, mic and vibration motor as measuring instruments. Verdicts are spoken in English, Hindi, Kannada, Telugu or Tamil, and the app stores a hash-chained history on the phone.
 
 AI and lab processing run on the phone. Optional maps and assistant web search use the internet; their switches are off by default.
 
