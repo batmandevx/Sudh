@@ -690,7 +690,7 @@ private fun DiscoverRow(app: AppState, modifier: Modifier) {
     val badges = com.shuddh.lab.core.Badges.all(app.store, app.prefs)
     val groups = listOf(
         "🩺 Health checks" to listOf(
-            // Hidden from Home for now — screen kept: Feature(FIcon.HEART, "Pulse", "heart rate", Palette.red) { app.go(Screen.PULSE) },
+            Feature(FIcon.HEART, "Pulse", "heart rate", Palette.red) { app.go(Screen.PULSE) },
             Feature(FIcon.DROP, "Anaemia", "15-second fingertip check", Color(0xFFF472B6)) { app.go(Screen.ANAEMIA) },
             Feature(FIcon.MOSQUITO, "Mosquito", "dengue & malaria alert", Color(0xFFF43F5E)) { app.go(Screen.MOSQUITO) },
             Feature(FIcon.SHIELD, "Guardian", "fall alert · offline SOS", Palette.accent) { app.go(Screen.GUARDIAN) },
@@ -705,7 +705,7 @@ private fun DiscoverRow(app: AppState, modifier: Modifier) {
             Feature(FIcon.NETWORK, "Hive", "warn your neighbours", Palette.violet) { app.tab(Screen.COMMUNITY) },
             Feature(FIcon.SIREN, "Outbreak", "early warning for your area", Palette.red) { app.go(Screen.OUTBREAK) },
             Feature(FIcon.MILK, "Milkman", "fair monthly milk bill", Color(0xFFE0F2FE)) { app.go(Screen.MILKMAN) },
-            // Hidden from Home for now — screen kept: Feature(FIcon.FAMILY, "Family", "what your child really drinks", Palette.blue) { app.go(Screen.EXPOSURE) },
+            Feature(FIcon.FAMILY, "Family", "what your child really drinks", Palette.blue) { app.go(Screen.EXPOSURE) },
         ),
         "🤖 AI & learning" to listOf(
             Feature(FIcon.BOOK, "Food guide", "16 home tests", Palette.cyan) { app.go(Screen.FOODGUIDE) },
