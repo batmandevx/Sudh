@@ -31,6 +31,16 @@ class Voice(ctx: Context) : TextToSpeech.OnInitListener {
         return null
     }
 
+    /** True while the engine is talking. */
+    val speaking get() = ready && tts.isSpeaking
+
+    /** Queues [text] after whatever is being said (for step-by-step narration). */
+    fun say(text: String, lang: Lang) {
+        if (!ready) { pending = text to lang; return }
+        tts.setLanguage(lang.locale)
+        tts.speak(text, TextToSpeech.QUEUE_ADD, null, "shuddh-q")
+    }
+
     fun stop() = tts.stop()
     fun shutdown() = tts.shutdown()
 }

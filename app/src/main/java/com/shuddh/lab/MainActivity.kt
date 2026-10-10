@@ -82,6 +82,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         app = AppState(applicationContext)
+        // Debug hook: --ez ringinfo true → logs what the vivo light service supports.
+        if (intent?.getBooleanExtra("ringinfo", false) == true) com.shuddh.lab.core.BackLight.probe().lines().forEach { android.util.Log.w("RingInfo", it) }
+        // Debug hook: --es backlight "ff0000:500:0" (rgb:type:preview) → lights the vivo back ring and logs the result.
+        intent?.getStringExtra("backlight")?.let { spec ->
+            val (rgb, type, prev) = (spec.split(":") + listOf("500", "0")).let { Triple(it[0], it[1], it[2]) }
+            if (rgb == "off") com.shuddh.lab.core.BackLight.off(this) else {
+                val ok = com.shuddh.lab.core.BackLight.setRaw(this, (0xFF000000 or rgb.toLong(16)).toInt(), 0, type.toInt(), prev == "1")
+                android.util.Log.w("BackLight", "available=${com.shuddh.lab.core.BackLight.available()} ok=$ok err=${com.shuddh.lab.core.BackLight.lastError}")
+            }
+        }
         // Debug hook: adb shell am start ... --es llmtest TOOLS:CPU  → runs one prompt and logs the result.
         intent?.getStringExtra("llmtest")?.let { spec ->
             val (r, b) = spec.split(":").let { com.shuddh.lab.core.ModelRole.valueOf(it[0]) to it.getOrElse(1) { "GPU" } }
@@ -181,6 +191,8 @@ private fun Root(app: AppState) {
                     Screen.VISION -> com.shuddh.lab.instruments.VisionScreen(app)
                     Screen.BOIL -> com.shuddh.lab.instruments.BoilScreen(app)
                     Screen.OIL -> com.shuddh.lab.instruments.OilScreen(app)
+                    Screen.PURITY -> com.shuddh.lab.instruments.PurityScreen(app)
+                    Screen.DART -> com.shuddh.lab.instruments.DartScreen(app)
                     Screen.GRAIN -> com.shuddh.lab.instruments.GrainScreen(app)
                     Screen.OUTBREAK -> com.shuddh.lab.ui.OutbreakScreen(app)
                     Screen.ANAEMIA -> com.shuddh.lab.instruments.AnaemiaScreen(app)

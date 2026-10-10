@@ -1,6 +1,7 @@
 package com.shuddh.lab.instruments
 
 import android.Manifest
+import com.shuddh.lab.camera.roi
 import android.content.pm.PackageManager
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -186,6 +187,32 @@ fun NamiScreen(app: AppState) {
     fun addWet() { wet = accumulate(wet, reading!!.bands).also { saveRef(app.prefs, "nami_${surface.id}_wet", it.first, it.second); savedMsg = "Saved as WET reference ×${it.second}" } }
 
     var air by remember { mutableStateOf(loadRef(app.prefs, "nami_air")?.first) }
+
+    // Sensor 2 — camera: wet porous material darkens (water fills air gaps, less scattering). L* vs a white card.
+    val cam = remember { com.shuddh.lab.camera.CameraHandle() }
+    val camWhite = android.graphics.RectF(0.08f, 0.40f, 0.30f, 0.60f)
+    val camSurf = android.graphics.RectF(0.45f, 0.30f, 0.92f, 0.70f)
+    val camCollector = remember { com.shuddh.lab.camera.Collector<List<Double>> { it.flatten() } }
+    var camRef by remember(surface) { mutableStateOf(app.prefs.json("nami_${surface.id}_cam") ?: org.json.JSONObject()) }
+    var camNow by remember(surface) { mutableStateOf<Pair<Double, Double>?>(null) }
+    var camBusy by remember { mutableStateOf(false) }
+    var camLive by remember { mutableStateOf<Double?>(null) }
+    fun camCapture(then: (Pair<Double, Double>) -> Unit) {
+        if (camCollector.busy) return
+        camBusy = true
+        camCollector.start(15) { ls ->
+            val m = ls.average(); val sd = kotlin.math.sqrt(ls.sumOf { (it - m) * (it - m) } / (ls.size - 1).coerceAtLeast(1))
+            camBusy = false; Haptics.click(ctx); then(m to sd)
+        }
+    }
+    fun camEstimate(): com.shuddh.lab.core.Fusion.Estimate? {
+        val (l, sd) = camNow ?: return null
+        if (!camRef.has("dry") || !camRef.has("wet")) return null
+        val ld = camRef.getDouble("dry"); val lw = camRef.getDouble("wet")
+        if (ld - lw < 3) return null // camera can't tell this material's dry from wet
+        val t = ((ld - l) / (ld - lw)).coerceIn(-0.2, 1.2)
+        return com.shuddh.lab.core.Fusion.Estimate("Camera · darkening", t, kotlin.math.sqrt((sd / kotlin.math.sqrt(15.0) / (ld - lw)).let { it * it } + 0.06 * 0.06))
+    }
     var airBusy by remember { mutableStateOf(false) }
 
     /**
@@ -281,8 +308,11 @@ fun NamiScreen(app: AppState) {
     val off = reading?.let { r -> val d = dry; val w = wet; if (d != null && w != null) Sonar.moisture(e(r).bands, e(d.first), e(w.first), Sonar.weights(e(r))).second else null }
     val stale = remember(surface) { staleRef(app.prefs, "nami_${surface.id}_dry") || staleRef(app.prefs, "nami_${surface.id}_wet") || staleRef(app.prefs, "nami_air") }
     val quick = reading?.takeIf { stats == null }?.let { Sonar.quickEstimate(it, air) }
-    val shown = stats ?: quick
+    val sonarEst = (stats ?: quick)?.let { (t, ci, _) -> com.shuddh.lab.core.Fusion.Estimate(if (stats != null) "Sonar · echo" else "Sonar · quick", t, (ci / 1.96).coerceAtLeast(0.03)) }
+    val fused = com.shuddh.lab.core.Fusion.combine(listOfNotNull(sonarEst, camEstimate()))?.takeIf { it.parts.size > 1 }
+    val shown = fused?.let { Triple(it.value, 1.96 * it.sigma, (stats ?: quick)!!.third) } ?: stats ?: quick
     val accuracy: Pair<String, Color> = when {
+        fused != null && stats != null && fused.agreement >= 0.6 -> "★★★ High accuracy — sonar + camera agree" to Palette.accent
         stats != null && dry!!.second >= 2 && wet!!.second >= 2 && stats.second < 0.08 -> "★★★ High accuracy" to Palette.accent
         stats != null -> "★★☆ Good — add 2+ captures per reference for high" to Palette.cyan
         air != null -> "★☆☆ Estimate (phone-calibrated)" to Palette.amber
@@ -309,8 +339,10 @@ fun NamiScreen(app: AppState) {
                 "${surface.name.en}: about ${qp.toInt()}% moisture (quick estimate)", adv + Words.calibrate, ev,
                 "Quick estimate without references. Save a dry and a wet reference of the same material for an accurate reading.", levelLabel = label)
         }
-        val (t, ci, _) = st
+        val (t, ci, _) = if (fused != null) Triple(fused.value, 1.96 * fused.sigma, st.third) else st
         val pct = (t * 100).coerceIn(0.0, 100.0)
+        fused?.let { f -> f.parts.forEachIndexed { i, p -> ev += Evidence("OBSERVATION", "${p.sensor}: ${fmt(p.value * 100)}% ± ${fmt(p.sigma * 100)}% (weight ${(f.weights[i] * 100).toInt()}%)") }
+            ev += Evidence("QUALITY", "Sonar and camera agree ${(f.agreement * 100).toInt()}%" + (f.outlier?.let { " — $it disagrees" } ?: ""), f.agreement >= 0.6) }
         ev += Evidence("PATTERN", "Moisture index ${fmt(pct)}% ± ${fmt(ci * 100)}% (95% CI over ${r.perChirp.size} chirps, inverse-variance weighted, level-invariant)", ci < 0.15)
         ev += Evidence("CALIBRATION", "References: dry ×${dry!!.second}, wet ×${wet!!.second} averaged captures", dry!!.second >= 2 && wet!!.second >= 2)
         ev += Evidence("QUALITY", "Off-axis distance ${fmt(off ?: 0.0)} dB (large = different material or distance)", (off ?: 0.0) < 3)
@@ -355,6 +387,7 @@ fun NamiScreen(app: AppState) {
                     Note(status)
                 }
             }
+            fused?.let { com.shuddh.lab.ui.FusionBars(it, 1.0) { v, sg -> "${(v * 100).toInt()}±${(sg * 100).toInt()}%" } }
             QualityChecks(volume, reading, motion.shake < 0.12f && !shakenDuring)
             Btn(if (busy) "Pinging $progress/3…" else "Ping surface (3× averaged)", Modifier.fillMaxWidth(), enabled = !busy) { ping() }
         }
@@ -398,6 +431,21 @@ fun NamiScreen(app: AppState) {
             if (spots.isNotEmpty()) SpotBars(spots)
         }
 
+        Section("Sensor 2 — camera (fused with sonar)") {
+            Note("Wet ${surface.name.en.lowercase()} looks darker: water fills the air gaps that scatter light. Put a white paper in the white box and the surface in the blue box.")
+            com.shuddh.lab.camera.CameraView(cam, Modifier.fillMaxWidth(), overlay = { roi(camWhite, Color.White); roi(camSurf, Palette.cyan) }) { bmp ->
+                val l = com.shuddh.lab.camera.Frames.relativeLab(com.shuddh.lab.camera.Frames.meanRgb(bmp, camSurf), com.shuddh.lab.camera.Frames.meanRgb(bmp, camWhite)).l
+                camLive = l
+                if (motion.steady) camCollector.offer(listOf(l))
+            }
+            Note("Live lightness L* ${camLive?.let { fmt(it) } ?: "—"}" + (camRef.optDouble("dry").takeIf { !it.isNaN() }?.let { " · dry ${fmt(it)}" } ?: "") + (camRef.optDouble("wet").takeIf { !it.isNaN() }?.let { " · wet ${fmt(it)}" } ?: "") + (camNow?.let { " · now ${fmt(it.first)}" } ?: ""))
+            BtnRow {
+                Btn(if (camBusy) "Reading…" else "📷 Read surface", enabled = !camBusy) { camCapture { camNow = it } }
+                Btn("DRY ref", primary = false, enabled = !camBusy) { camCapture { camRef = org.json.JSONObject(camRef.toString()).put("dry", it.first); app.prefs.putJson("nami_${surface.id}_cam", camRef); camNow = it } }
+                Btn("WET ref", primary = false, enabled = !camBusy) { camCapture { camRef = org.json.JSONObject(camRef.toString()).put("wet", it.first); app.prefs.putJson("nami_${surface.id}_cam", camRef); camNow = it } }
+            }
+            if (camRef.has("dry") && camRef.has("wet") && camRef.getDouble("dry") - camRef.getDouble("wet") < 3) Note("Camera can't see a difference for this material — only sonar will be used.", Palette.amber)
+        }
         Section("References for ${surface.name.en}") {
             Note("For ★★★ accuracy: ping the same material fully dry and fully wet, same distance, and add 2–3 captures of each — they're averaged.")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -459,6 +507,8 @@ fun NamiScreen(app: AppState) {
             "The score uses the spectrum's shape, not its loudness, so holding the phone a few mm closer doesn't read as \"wetter\".",
             "Media volume is pinned to 85% during every ping (then restored), so references and readings are always made at the same loudness.",
             "Each chirp is projected between your averaged dry and wet references, giving a moisture index with a 95% confidence interval.",
+            "A second, independent sensor — the camera — measures how much darker the surface is than your dry reference (water fills the air gaps that scatter light).",
+            "Sonar and camera are fused by inverse-variance weighting; a χ² test checks they agree. ★★★ only when both sensors tell the same story.",
         ))
     }
 }

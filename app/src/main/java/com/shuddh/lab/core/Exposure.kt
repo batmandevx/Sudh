@@ -5,7 +5,7 @@ package com.shuddh.lab.core
  * for holds only 0.7 L of milk, so the real price per litre of milk is paid ÷ 0.7.
  */
 object TruePrice {
-    private val dilutionIds = setOf("milk_water", "nir_water", "honey_polar")
+    private val dilutionIds = setOf("milk_water", "nir_water", "honey_polar", "honey_water")
 
     fun applies(analyteId: String, unit: String) = unit == "%" && analyteId in dilutionIds
 

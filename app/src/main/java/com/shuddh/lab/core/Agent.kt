@@ -144,8 +144,8 @@ object Agent {
     )
 
     private val instruments = mapOf(
-        "spectrum" to "SPECTRUM", "milk" to "SPECTRUM", "water" to "SPECTRUM", "chlorine" to "SPECTRUM",
-        "polar" to "POLAR", "honey" to "POLAR", "nir" to "NIR", "nami" to "NAMI", "moisture" to "NAMI", "wall" to "NAMI",
+        "spectrum" to "SPECTRUM", "milk" to "PURITY", "water" to "SPECTRUM", "chlorine" to "SPECTRUM",
+        "polar" to "POLAR", "honey" to "PURITY", "purity" to "PURITY", "dart" to "DART", "bleach" to "DART", "chlorine" to "DART", "h2s" to "DART", "germs" to "DART", "starch" to "DART", "detergent" to "DART", "iodine" to "DART", "fssai" to "DART", "adulteration" to "PURITY", "nir" to "NIR", "nami" to "NAMI", "moisture" to "NAMI", "wall" to "NAMI",
         "echo" to "ECHO", "coconut" to "ECHO", "watermelon" to "ECHO", "strips" to "STRIP", "strip" to "STRIP",
         "hawa" to "SCATTER", "air" to "SCATTER", "float" to "FLOAT", "lactometer" to "FLOAT",
         "magneto" to "MAGNETO", "steel" to "MAGNETO", "whistle" to "WHISTLE", "cooker" to "WHISTLE",

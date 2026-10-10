@@ -12,8 +12,8 @@ android {
         applicationId = "com.shuddh.lab"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "5.3"
+        versionCode = 13
+        versionName = "5.4"
         // Modern Android phones are arm64; shipping one ABI keeps the download small.
         ndk { abiFilters += "arm64-v8a" }
     }
@@ -64,6 +64,8 @@ dependencies {
     implementation("com.google.mediapipe:tasks-genai:0.10.27")
     // LiteRT-LM runtime for .litertlm models (MiniCPM5).
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.16.1")
+    // Lets Shuddh (only) call vivo's VivoLightManager to drive the iQOO back RGB ring as a camera light.
+    implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.1")
     implementation("com.google.mediapipe:tasks-text:0.10.29")
     implementation("com.google.mediapipe:tasks-vision:0.10.29")
     // Compile-time only: the no-op CCTDestination stub implements this interface (no uploader is bundled).

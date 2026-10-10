@@ -5,6 +5,13 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -98,25 +105,26 @@ fun readiness(app: AppState): Map<Screen, Ready> {
         Screen.LENS to Ready(true, "Ready"),
         Screen.WHISTLE to if (p.has("whistle_pitch")) Ready(true, "Tuned") else Ready(true, "Ready"),
         Screen.FLOAT to Ready(true, "Ready"),
+        Screen.PURITY to if (p.has("purity_milk") || p.has("purity_honey")) Ready(true, "Calibrated") else Ready(false, "3 refs"),
     )
 }
 
 private data class AppIcon(val screen: Screen, val name: String, val color: Color, val glyph: Glyph)
 
 private val foodWater = listOf(
-    AppIcon(Screen.SPECTRUM, "Spectrum", Palette.violet, Glyph.SPECTRUM),
-    AppIcon(Screen.POLAR, "Honey", Palette.amber, Glyph.POLAR),
-    AppIcon(Screen.NIR, "Infrared", Palette.red, Glyph.NIR),
-    AppIcon(Screen.FLOAT, "Milk", Color(0xFFE8F1EC), Glyph.FLOAT),
-)
-private val soundSensors = listOf(
-    AppIcon(Screen.ECHO, "Echo", Palette.blue, Glyph.ECHO),
+    AppIcon(Screen.PURITY, "Purity", Color(0xFFE8F1EC), Glyph.FLOAT),
+    AppIcon(Screen.ECHO, "Coconut·Melon", Palette.blue, Glyph.ECHO),
     AppIcon(Screen.NAMI, "Moisture", Palette.cyan, Glyph.NAMI),
     AppIcon(Screen.WHISTLE, "Whistle", Palette.red, Glyph.COOKER),
-    AppIcon(Screen.MAGNETO, "Steel", Palette.violet, Glyph.MAGNET),
+)
+private val soundSensors = listOf(
+    AppIcon(Screen.SPECTRUM, "Spectrum", Palette.violet, Glyph.SPECTRUM),
+    AppIcon(Screen.POLAR, "Polariser", Palette.amber, Glyph.POLAR),
+    AppIcon(Screen.FLOAT, "Lactometer", Color(0xFFE8F1EC), Glyph.FLOAT),
+    AppIcon(Screen.STRIP, "Strips", Palette.accent, Glyph.STRIP),
 )
 private val moreTools = listOf(
-    AppIcon(Screen.STRIP, "Strips", Palette.accent, Glyph.STRIP),
+    AppIcon(Screen.MAGNETO, "Steel", Palette.violet, Glyph.MAGNET),
     AppIcon(Screen.SCATTER, "Air", Color(0xFF9AD0C2), Glyph.SCATTER),
     AppIcon(Screen.MODELS, "AI models", Palette.violet, Glyph.SPARK),
     AppIcon(Screen.GUIDE, "Kit guide", Palette.amber, Glyph.KIT),
@@ -141,6 +149,7 @@ private fun instrumentScreen(record: ScanRecord): Screen? = when {
     record.instrument.contains("Nami", true) -> Screen.NAMI
     record.instrument.contains("Magneto", true) -> Screen.MAGNETO
     record.instrument.contains("Whistle", true) -> Screen.WHISTLE
+    record.instrument.contains("Purity", true) -> Screen.PURITY
     record.instrument.contains("Float", true) -> Screen.FLOAT
     record.instrument.contains("Strip", true) -> Screen.STRIP
     record.instrument.contains("Hawa", true) || record.instrument.contains("Scatter", true) -> Screen.SCATTER
@@ -235,12 +244,13 @@ fun HomeScreen(app: AppState) {
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             HomeHeader(app)
+            DartBanner(Modifier.enter(1)) { app.go(Screen.DART) }
             HeroCard(app, Modifier.enter(1))
             LabPulse(app, ready, Modifier.enter(2))
             AskBar(Modifier.enter(3)) { app.go(Screen.ASSISTANT) }
             QuickActions(app, Modifier.enter(4))
-            IconSection("Test food & water", foodWater, ready, app, Modifier.enter(5))
-            IconSection("Sound & sensors", soundSensors, ready, app, Modifier.enter(6))
+            IconSection("Test with just your phone", foodWater, ready, app, Modifier.enter(5))
+            IconSection("Needs a small kit (CD, polariser, strips)", soundSensors, ready, app, Modifier.enter(6))
             IconSection("More tools", moreTools, ready, app, Modifier.enter(7))
             ExpiringStrip(app)
             DiscoverRow(app, Modifier.enter(8))
@@ -248,6 +258,29 @@ fun HomeScreen(app: AppState) {
             if (records.isNotEmpty()) RecentStrip(app)
             Spacer(Modifier.height(96.dp))
         }
+    }
+}
+
+/** Headline feature: FSSAI's home adulteration tests, read by the camera. */
+@Composable
+private fun DartBanner(modifier: Modifier, onClick: () -> Unit) {
+    val inf = rememberInfiniteTransition(label = "dart")
+    val shift by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(4000, easing = LinearEasing), RepeatMode.Reverse), label = "sh")
+    Column(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp))
+            .background(Brush.linearGradient(listOf(Color(0xFF312E81), Color(0xFF4338CA).copy(alpha = 0.85f), Color(0xFF0E7490).copy(alpha = 0.7f)), start = Offset(0f, 0f), end = Offset(900f * (0.6f + shift), 600f)))
+            .border(1.dp, Color(0xFF818CF8).copy(alpha = 0.6f), RoundedCornerShape(26.dp)).clickable { onClick() }.padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text("SHUDDH SENSOR LAB · NO KITS", color = Color(0xFFC7D2FE), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+        Text("Is it safe?\nJust your phone's sensors — no kits.", color = Color.White, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 21.sp, lineHeight = 27.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+            listOf("🥛 Milk", "💧 Water", "🍳 Oil", "🌾 Grain").forEach {
+                Text(it, color = Color.White, fontSize = 12.sp, maxLines = 1, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(50)).background(Color(0x33FFFFFF)).padding(vertical = 6.dp))
+            }
+        }
+        Text("📷 🔦 🎤 📳 🧲  → safe or not, and how sure  →", color = Color(0xFFE0E7FF), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
