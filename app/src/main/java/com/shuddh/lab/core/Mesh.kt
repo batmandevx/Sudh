@@ -43,6 +43,18 @@ object MeshProto {
     const val ALERT = 2
     const val SEAL = 3
     const val SOS = 4
+    /** One piece of a photo: "imgId|index|total|base64". */
+    const val IMAGE = 5
+
+    const val IMG_CHUNK = MeshImage.CHUNK
+    fun thumbnail(src: android.graphics.Bitmap, maxSide: Int = 80, quality: Int = 40): ByteArray {
+        val k = maxSide.toFloat() / maxOf(src.width, src.height)
+        val b = android.graphics.Bitmap.createScaledBitmap(src, (src.width * k).toInt().coerceAtLeast(8), (src.height * k).toInt().coerceAtLeast(8), true)
+        val out = java.io.ByteArrayOutputStream(); b.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality, out)
+        return out.toByteArray()
+    }
+    fun imageChunks(id: Int, jpeg: ByteArray) = MeshImage.chunks(id, jpeg)
+    fun parsePiece(text: String) = MeshImage.parse(text)
     val SERVICE: ParcelUuid = ParcelUuid.fromString("00005d11-0000-1000-8000-00805f9b34fb")
 
     data class Packet(val type: Int, val ttl: Int, val id: Int, val time: Long, val name: String, val text: String, val room: Int = 0)
@@ -109,6 +121,12 @@ class Mesh(
     var relayed by mutableStateOf(0); private set
     var heard by mutableStateOf(0); private set
     var beacon by mutableStateOf<String?>(null)
+    /** Received / sent photos by image id, and how much of each has arrived (0..1). */
+    val images = mutableStateMapOf<Int, android.graphics.Bitmap>()
+    val imageProgress = mutableStateMapOf<Int, Float>()
+    private val pieces = HashMap<Int, Array<ByteArray?>>()
+    /** Photos need Bluetooth 5 extended advertising (≈200-byte packets). */
+    val canSendImages get() = extended
 
     private val main = Handler(Looper.getMainLooper())
     private val seen = LinkedHashSet<Int>()
@@ -180,6 +198,23 @@ class Mesh(
         messages.add(0, MeshMessage(p, mine = true, hops = 0, rssi = 0))
     }
 
+    /** Sends a photo as numbered pieces; every piece is relayed like a message and reassembled on arrival. */
+    fun sendImage(bmp: android.graphics.Bitmap): Boolean {
+        if (!running || !extended) return false
+        val id = Random.nextInt(1, Int.MAX_VALUE)
+        val jpeg = MeshProto.thumbnail(bmp)
+        images[id] = android.graphics.BitmapFactory.decodeByteArray(jpeg, 0, jpeg.size); imageProgress[id] = 1f
+        val chunks = MeshProto.imageChunks(id, jpeg)
+        val now = System.currentTimeMillis()
+        chunks.forEach { c ->
+            val p = MeshProto.Packet(MeshProto.IMAGE, ttlDefault, Random.nextInt(), now, nameProvider(), c, roomCode)
+            seen.add(p.id)
+            synchronized(outbox) { outbox.add(Out(MeshProto.encode(p, maxBytes), now + 180_000)) }
+        }
+        messages.add(0, MeshMessage(MeshProto.Packet(MeshProto.IMAGE, 0, id, now, nameProvider(), "img:$id", roomCode), mine = true, hops = 0, rssi = 0))
+        return true
+    }
+
     private fun helloBytes(): ByteArray = MeshProto.encode(
         MeshProto.Packet(MeshProto.HELLO, 0, 0, System.currentTimeMillis(), nameProvider(), beacon ?: "", roomCode), maxBytes,
     )
@@ -243,7 +278,20 @@ class Mesh(
         if (!seen.add(p.id)) return
         if (seen.size > 600) seen.remove(seen.first())
         heard++
-        messages.add(0, MeshMessage(p, mine = false, hops = (ttlDefault - p.ttl).coerceAtLeast(1), rssi = rssi))
+        if (p.type == MeshProto.IMAGE) {
+            MeshImage.parse(p.text)?.let { pc ->
+                val arr = pieces.getOrPut(pc.id) { arrayOfNulls(pc.total.coerceIn(1, 64)) }
+                if (pc.index in arr.indices) arr[pc.index] = pc.bytes
+                val got = arr.count { it != null }
+                if (!imageProgress.containsKey(pc.id)) messages.add(0, MeshMessage(p.copy(text = "img:${pc.id}"), mine = false, hops = (ttlDefault - p.ttl).coerceAtLeast(1), rssi = rssi))
+                imageProgress[pc.id] = got / arr.size.toFloat()
+                if (got == arr.size && !images.containsKey(pc.id)) {
+                    val all = arr.fold(ByteArray(0)) { a, b -> a + (b ?: ByteArray(0)) }
+                    android.graphics.BitmapFactory.decodeByteArray(all, 0, all.size)?.let { images[pc.id] = it }
+                    pieces.remove(pc.id)
+                }
+            }
+        } else messages.add(0, MeshMessage(p, mine = false, hops = (ttlDefault - p.ttl).coerceAtLeast(1), rssi = rssi))
         if (messages.size > 200) messages.removeAt(messages.lastIndex)
         if (p.type == MeshProto.ALERT || p.type == MeshProto.SEAL) onAlert(p)
         if (p.ttl > 0) {
@@ -253,4 +301,23 @@ class Mesh(
             }
         }
     }
+}
+
+
+/** Photo pieces for the mesh (pure Kotlin, testable): "imgId|index|total|base64". */
+object MeshImage {
+    /** Base64 of 105 bytes = 140 chars + a ≤ 17-char header: fits the 170-char payload of a 200-byte packet. */
+    const val CHUNK = 105
+
+    data class Piece(val id: Int, val index: Int, val total: Int, val bytes: ByteArray)
+
+    fun chunks(id: Int, jpeg: ByteArray): List<String> {
+        val parts = jpeg.toList().chunked(CHUNK).map { it.toByteArray() }
+        return parts.mapIndexed { i, b -> "$id|$i|${parts.size}|" + java.util.Base64.getEncoder().encodeToString(b) }
+    }
+
+    fun parse(text: String): Piece? = runCatching {
+        val f = text.split("|", limit = 4)
+        Piece(f[0].toInt(), f[1].toInt(), f[2].toInt(), java.util.Base64.getDecoder().decode(f[3]))
+    }.getOrNull()
 }

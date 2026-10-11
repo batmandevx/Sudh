@@ -70,4 +70,20 @@ class WaxPantryTest {
         assertEquals("open_instrument", Agent.ruleRoute("is my milk adulterated", false).name)
         assertEquals("pantry_brief", Agent.ruleRoute("what is running out in my pantry", false).name)
     }
+
+    @Test fun problemDescriptionsOpenTheRightTest() {
+        assertEquals("PURITY", Agent.testScreen("my milk tastes weird"))
+        assertEquals("PURITY", Agent.testScreen("doodh ka swad ajeeb hai"))
+        assertEquals("PURITY", Agent.testScreen("the milk is very watery these days"))
+        assertEquals("PURITY", Agent.testScreen("my tea tastes soapy"))
+        assertEquals("WAX", Agent.testScreen("these apples look too shiny"))
+        assertEquals("ECHO", Agent.testScreen("watermelon is too red inside"))
+        assertEquals("GRAIN", Agent.testScreen("I found stones in my rice"))
+        assertEquals("OIL", Agent.testScreen("the frying oil turned dark and foamy"))
+        assertEquals("DART", Agent.testScreen("tap water smells like bleach"))
+        assertEquals("DART", Agent.testScreen("haldi leaves yellow colour in water"))
+        assertEquals("NAMI", Agent.testScreen("my cupboard smells musty"))
+        assertNull(Agent.testScreen("is milk good for health"))
+        assertEquals("open_instrument", Agent.ruleRoute("my milk tastes weird", false).name)
+    }
 }

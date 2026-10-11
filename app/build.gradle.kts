@@ -12,8 +12,8 @@ android {
         applicationId = "com.shuddh.lab"
         minSdk = 26
         targetSdk = 35
-        versionCode = 14
-        versionName = "5.5"
+        versionCode = 15
+        versionName = "5.6"
         // Modern Android phones are arm64; shipping one ABI keeps the download small.
         ndk { abiFilters += "arm64-v8a" }
     }
@@ -68,6 +68,8 @@ dependencies {
     implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.1")
     implementation("com.google.mediapipe:tasks-text:0.10.29")
     implementation("com.google.mediapipe:tasks-vision:0.10.29")
+    // Leaf Doctor: plant-disease MobileNetV2 (80 classes) runs through the plain TFLite interpreter.
+    implementation("org.tensorflow:tensorflow-lite:2.16.1")
     // Compile-time only: the no-op CCTDestination stub implements this interface (no uploader is bundled).
     compileOnly("com.google.android.datatransport:transport-runtime:3.1.0")
     compileOnly("com.google.android.datatransport:transport-api:3.0.0")

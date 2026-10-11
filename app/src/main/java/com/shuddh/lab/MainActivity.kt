@@ -200,6 +200,7 @@ private fun Root(app: AppState) {
                     Screen.HOME -> HomeScreen(app)
                     Screen.TOOLS -> com.shuddh.lab.ui.ToolsScreen(app)
                     Screen.WAX -> com.shuddh.lab.instruments.WaxScreen(app)
+                    Screen.FARM -> com.shuddh.lab.ui.FarmTwinScreen(app, asTab = app.navDepth <= 2)
                     Screen.SPECTRUM -> SpectrumScreen(app)
                     Screen.POLAR -> PolarScreen(app)
                     Screen.NIR -> NirScreen(app)
@@ -234,15 +235,15 @@ private fun Root(app: AppState) {
                     Screen.SCATTER -> ScatterScreen(app)
                     Screen.FLOAT -> FloatScreen(app)
                     Screen.RESULT -> ResultScreen(app)
-                    Screen.HISTORY -> HistoryScreen(app)
-                    Screen.INSIGHTS -> InsightsScreen(app)
+                    Screen.HISTORY -> com.shuddh.lab.ui.InsightsHub(app, history = true)
+                    Screen.INSIGHTS -> com.shuddh.lab.ui.InsightsHub(app, history = false)
                     Screen.COMMUNITY -> CommunityScreen(app)
                     Screen.SETTINGS -> SettingsScreen(app)
                     Screen.GUIDE -> GuideScreen(app)
                 }
             } }
         }
-        if (screen in tabs) Box(Modifier.align(Alignment.BottomCenter)) { BottomBar(app, screen) }
+        if (screen in tabs || screen == Screen.HISTORY) Box(Modifier.align(Alignment.BottomCenter)) { BottomBar(app, if (screen == Screen.HISTORY) Screen.INSIGHTS else screen) }
         Box(Modifier.align(Alignment.TopCenter)) { com.shuddh.lab.ui.IncomingSosBanner(app) }
         com.shuddh.lab.ui.GuardianAlert(app)
     }
@@ -262,11 +263,12 @@ private fun BottomBar(app: AppState, current: Screen) {
         ) {
             listOf(
                 Triple(Screen.HOME, "Lab", Icons.Filled.Home),
-                Triple(Screen.HISTORY, "History", Icons.Filled.List),
                 Triple(Screen.INSIGHTS, "Insights", Icons.Filled.DateRange),
+                Triple(Screen.FARM, "CrispRoots", Icons.Filled.Home),
                 Triple(Screen.COMMUNITY, "Hive", Icons.Filled.Place),
                 Triple(Screen.SETTINGS, "Settings", Icons.Filled.Settings),
             ).forEach { (s, label, icon) ->
+                if (s == Screen.FARM) { com.shuddh.lab.ui.CrispTabButton(current == s, Modifier.weight(1.2f)) { app.tab(s) }; return@forEach }
                 val sel = current == s
                 val w by animateFloatAsState(if (sel) 1f else 0f, tween(350), label = "nav")
                 Column(

@@ -24,6 +24,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -312,7 +314,9 @@ fun AssistantScreen(app: AppState) {
                 androidx.compose.material3.IconButton(onClick = { app.back() }, modifier = Modifier.clip(CircleShape).background(Palette.glass)) {
                     androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Palette.text)
                 }
-                Spacer(Modifier.size(10.dp))
+                Spacer(Modifier.size(8.dp))
+                AiOrb(40.dp, thinking = running, rings = false)
+                Spacer(Modifier.size(8.dp))
                 Column(Modifier.weight(1f)) {
                     Text("Ask Shuddh", fontFamily = Display, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Palette.text)
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.clickable { app.go(Screen.MODELS) }) {
@@ -332,11 +336,16 @@ fun AssistantScreen(app: AppState) {
             ) {
                 if (ordered.isEmpty()) {
                     item {
-                        Column(Modifier.fillMaxWidth().padding(top = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            MicOrb(listening, level) { mic() }
-                            Text(if (listening) partial.ifBlank { "Listening…" } else "Ask about your food, a vendor, or a photo", color = Palette.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                            Text("AI runs on your phone. Enable Web access to search online with source links.", color = Palette.muted, fontSize = 12.sp)
-                            Pipeline("idle")
+                        Column(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Box(Modifier.size(190.dp).clip(CircleShape).clickable { mic() }, contentAlignment = Alignment.Center) {
+                                AiOrb(190.dp, level = if (listening) level else 0f, thinking = listening)
+                                if (listening) MicGlyph(Color.White, Modifier.size(30.dp))
+                            }
+                            Text(if (listening) partial.ifBlank { "Listening…" } else "Hi! Tell me what feels wrong.",
+                                style = androidx.compose.ui.text.TextStyle(brush = Brush.linearGradient(AiColors), fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 22.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center))
+                            Text("Describe the problem — I'll open the right test.", color = Palette.muted, fontSize = 13.sp)
+                            ProblemGrid { ask(it) }
+                            Text("Runs on your phone · tap the orb to talk", color = Palette.muted, fontSize = 11.sp)
                         }
                     }
                 } else {
@@ -356,12 +365,12 @@ fun AssistantScreen(app: AppState) {
             }
 
             // Suggestions
-            if (input.isBlank() && !running) {
+            if (input.isBlank() && !running && ordered.isNotEmpty()) {
                 androidx.compose.foundation.lazy.LazyRow(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    val sugg = listOf("✨ What should I check today?", "🕒 What time is it?", "📱 Phone status", "⏱ Timer 10 min to boil water", "⏰ Remind me to buy milk at 7 pm", "How is my kitchen?", "🔦 Turn on the torch",
+                    val sugg = listOf("🥛 My milk tastes weird", "🍎 These apples look too shiny", "🌾 Stones in my rice", "🛒 What's running out?", "✨ What should I check today?", "🕒 What time is it?", "📱 Phone status", "⏱ Timer 10 min to boil water", "⏰ Remind me to buy milk at 7 pm", "How is my kitchen?", "🔦 Turn on the torch",
                         "What failed the most?", "Count 3 cooker whistles", "▦ QR for my vendor list", "Teach me something new", "Why is nitrate dangerous?", "Download my report")
                     items(sugg) { sg ->
                         Text(sg, color = Palette.text, fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.glass)
@@ -411,6 +420,37 @@ fun AssistantScreen(app: AppState) {
                         .clickable(enabled = input.isNotBlank() && !running) { ask(input) },
                     contentAlignment = Alignment.Center,
                 ) { Text(if (running) "…" else "↑", color = Palette.onAccent, fontSize = 20.sp, fontWeight = FontWeight.Black) }
+            }
+        }
+    }
+}
+
+/** Problem-first starter cards: tap one and the assistant routes it to the right test. */
+@Composable
+private fun ProblemGrid(onPick: (String) -> Unit) {
+    val items = listOf(
+        Triple("🥛", "My milk tastes weird", Color(0xFF0EA5E9)), Triple("🍎", "These apples look too shiny", Color(0xFFE11D48)),
+        Triple("🍉", "Is this watermelon ripe?", Color(0xFF16A34A)), Triple("💧", "Tap water smells of bleach", Color(0xFF6366F1)),
+        Triple("🌾", "Stones in my rice", Color(0xFFD97706)), Triple("🛒", "What's running out at home?", Color(0xFF8B5CF6)),
+    )
+    Column(Modifier.fillMaxWidth().padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items.chunked(2).forEachIndexed { r, row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEachIndexed { i, (emoji, text, c) ->
+                    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                    val pressed by src.collectIsPressedAsState()
+                    val sc by animateFloatAsState(if (pressed) 0.94f else 1f, androidx.compose.animation.core.spring(dampingRatio = 0.5f), label = "pg")
+                    Row(
+                        Modifier.weight(1f).enter(r * 2 + i).graphicsLayer { scaleX = sc; scaleY = sc }.clip(RoundedCornerShape(18.dp))
+                            .background(Brush.linearGradient(listOf(c.copy(alpha = 0.14f), Palette.surface)))
+                            .border(1.dp, c.copy(alpha = 0.3f), RoundedCornerShape(18.dp))
+                            .clickable(src, null) { onPick(text) }.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(emoji, fontSize = 22.sp); Spacer(Modifier.size(8.dp))
+                        Text(text, color = Palette.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, lineHeight = 15.sp, maxLines = 2)
+                    }
+                }
             }
         }
     }
@@ -569,25 +609,6 @@ private fun ThinkingDots(label: String) {
 }
 
 /** Glowing microphone orb whose halo follows the live voice level. */
-@Composable
-private fun MicOrb(active: Boolean, level: Float, onTap: () -> Unit) {
-    val l by animateFloatAsState(if (active) 0.35f + level * 0.65f else 0.15f, tween(120), label = "lvl")
-    val t = rememberInfiniteTransition(label = "orb")
-    val rot by t.animateFloat(0f, 360f, infiniteRepeatable(tween(6000, easing = LinearEasing)), label = "rot")
-    val breathe by t.animateFloat(0.96f, 1.04f, infiniteRepeatable(tween(1600), RepeatMode.Reverse), label = "b")
-    Box(Modifier.size(170.dp).clip(CircleShape).clickable(onClick = onTap), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.size(170.dp)) {
-            val r = size.minDimension / 2
-            drawCircle(Brush.radialGradient(listOf(Color(0xFF8B5CF6).copy(alpha = 0.55f * l + 0.1f), Color.Transparent)), r)
-            rotate(rot) {
-                drawCircle(Brush.sweepGradient(SpectrumColors + SpectrumColors.first()), r * (0.55f + 0.25f * l), style = Stroke(6f))
-            }
-            drawCircle(Brush.linearGradient(listOf(Color(0xFF8B5CF6), Color(0xFF22D3EE))), r * 0.42f * breathe)
-        }
-        Text(if (active) "●" else "🎙", fontSize = 34.sp, color = Color.White)
-    }
-}
-
 
 /** One-tap cooking timers for every "N minutes" step in a recipe. */
 private fun recipeTimers(app: AppState, recipe: String): List<AssistantAction> =

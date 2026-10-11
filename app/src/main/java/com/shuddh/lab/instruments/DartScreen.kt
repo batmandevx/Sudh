@@ -217,7 +217,7 @@ private data class LabRead(val l: Double, val a: Double, val b: Double, val sdB:
 
 /** One guided test: steps, timer, camera, measurement, result, and (colour tests) lab validation. */
 @Composable
-private fun DartRunner(app: AppState, t: Dart.Test, next: Dart.Test?, onNext: () -> Unit, close: () -> Unit) {
+internal fun DartRunner(app: AppState, t: Dart.Test, next: Dart.Test?, onNext: () -> Unit, close: () -> Unit) {
     val ctx = app.ctx
     val scope = rememberCoroutineScope()
     val cam = remember { CameraHandle() }

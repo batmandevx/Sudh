@@ -120,6 +120,7 @@ private val foodWater get() = listOf(
     AppIcon(Screen.DART, "Sensor Lab", Palette.violet, Glyph.SPECTRUM),
     AppIcon(Screen.LENS, "Label Lens", Palette.amber, Glyph.STRIP),
     AppIcon(Screen.GRAIN, "Grain", Color(0xFFD97706), Glyph.SCATTER),
+    AppIcon(Screen.FARM, "Farm Twin", Palette.accent, Glyph.SPARK),
 )
 private val soundSensors get() = listOf(
     AppIcon(Screen.SPECTRUM, "Spectrum", Palette.violet, Glyph.SPECTRUM),
@@ -249,9 +250,8 @@ fun HomeScreen(app: AppState) {
         ) {
             HomeHeader(app)
             DartBanner(Modifier.enter(1)) { app.go(Screen.DART) }
-            AskBar(Modifier.enter(2)) { app.go(Screen.ASSISTANT) }
+            AskBarFancy(Modifier.enter(2)) { app.go(Screen.ASSISTANT) }
             MainTests(app, Modifier.enter(3))
-            HeroCard(app, Modifier.enter(4))
             ToolsEntry(Modifier.enter(5)) { app.go(Screen.TOOLS) }
             WhyIndiaCard(Modifier.enter(6))
             if (records.isNotEmpty()) RecentStrip(app)
@@ -265,6 +265,7 @@ fun HomeScreen(app: AppState) {
 fun ToolsScreen(app: AppState) {
     val ready = readiness(app)
     ScreenFrame("Tools", "Every instrument and helper in Shuddh", onBack = { app.back() }) {
+        HeroCard(app, Modifier.enter(0))
         SmartPantryCard(app, Modifier.enter(0))
         LabPulse(app, ready, Modifier.enter(0))
         QuickActions(app, Modifier.enter(1))
@@ -305,7 +306,7 @@ private data class MainTest(val screen: Screen, val icon: FIcon, val title: Stri
 @Composable
 private fun MainTests(app: AppState, modifier: Modifier) {
     val tests = listOf(
-        MainTest(Screen.PURITY, FIcon.MILK, "Milk purity", "Water %, spoiled, detergent", Color(0xFF0EA5E9)),
+        MainTest(Screen.PURITY, FIcon.MILK, "Purity", "Milk, honey, juice, oil", Color(0xFF0EA5E9)),
         MainTest(Screen.WAX, FIcon.SHIELD, "Fruit polish", "Wax-coated apples & fruit", Color(0xFFE11D48)),
         MainTest(Screen.ECHO, FIcon.DROP, "Melon · Coconut", "Tap to hear ripeness", Color(0xFF16A34A)),
         MainTest(Screen.DART, FIcon.POT, "Water & oil", "Sensor Lab safety checks", Color(0xFF7C3AED)),
@@ -331,15 +332,14 @@ private fun MainTestCard(t: MainTest, modifier: Modifier, onClick: () -> Unit) {
         modifier.graphicsLayer { scaleX = scale; scaleY = scale }.clip(RoundedCornerShape(24.dp))
             .background(Brush.linearGradient(listOf(t.color.copy(alpha = glow), Palette.surface)))
             .border(1.dp, t.color.copy(alpha = 0.35f), RoundedCornerShape(24.dp))
-            .clickable(src, null, onClick = onClick).height(186.dp).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .clickable(src, null, onClick = onClick).height(112.dp).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Box(Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(t.color.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
-            FeatureIcon(t.icon, t.color, 34.dp)
+        Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(t.color.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+            FeatureIcon(t.icon, t.color, 24.dp)
         }
-        Text(tr(t.title), color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(tr(t.sub), color = Palette.muted, fontSize = 11.sp, maxLines = 2, lineHeight = 14.sp, modifier = Modifier.weight(1f))
-        Text(tr("Start") + " →", color = t.color, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        Text(tr(t.title), color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(tr(t.sub), color = Palette.muted, fontSize = 10.sp, maxLines = 2, lineHeight = 13.sp)
     }
 }
 
@@ -548,24 +548,6 @@ private fun HeroStat(v: String, label: String, c: Color, modifier: Modifier) {
 
 @Composable
 private fun VDivider() = Box(Modifier.width(1.dp).height(28.dp).background(Palette.line))
-
-@Composable
-private fun AskBar(modifier: Modifier, onClick: () -> Unit) {
-    Row(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(Brush.horizontalGradient(listOf(Color(0x332A1F5C), Color(0x2222D3EE))))
-            .border(1.dp, Brush.horizontalGradient(listOf(Color(0x888B5CF6), Color(0x6622D3EE))), RoundedCornerShape(50))
-            .clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("✨", fontSize = 18.sp)
-        Spacer(Modifier.width(10.dp))
-        Text("Ask Shuddh — \"set a 10 min timer\", \"is my milk safe?\"", color = Palette.muted, fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f),
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-        Box(Modifier.size(34.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Color(0xFF8B5CF6), Color(0xFF22D3EE)))), contentAlignment = Alignment.Center) {
-            Text("🎙", fontSize = 15.sp)
-        }
-    }
-}
 
 private enum class QI { LENS, SEARCH, VIDEO, MESH, REPORT, MAP }
 

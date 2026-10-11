@@ -21,10 +21,10 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-enum class Screen { HOME, SPECTRUM, POLAR, NIR, ECHO, NAMI, MAGNETO, MESH, ASSISTANT, WHISTLE, LENS, MODELS, MEDIA, VIDEO, MAP, BADGES, FOODGUIDE, PANTRY, PULSE, VISION, BOIL, OIL, GRAIN, OUTBREAK, ANAEMIA, MOSQUITO, GUARDIAN, EXPOSURE, MILKMAN, PURITY, DART, STRIP, SCATTER, FLOAT, RESULT, HISTORY, INSIGHTS, COMMUNITY, SETTINGS, GUIDE, TOOLS, WAX, ONBOARDING }
+enum class Screen { HOME, SPECTRUM, POLAR, NIR, ECHO, NAMI, MAGNETO, MESH, ASSISTANT, WHISTLE, LENS, MODELS, MEDIA, VIDEO, MAP, BADGES, FOODGUIDE, PANTRY, PULSE, VISION, BOIL, OIL, GRAIN, OUTBREAK, ANAEMIA, MOSQUITO, GUARDIAN, EXPOSURE, MILKMAN, PURITY, DART, STRIP, SCATTER, FLOAT, RESULT, HISTORY, INSIGHTS, COMMUNITY, SETTINGS, GUIDE, TOOLS, WAX, FARM, ONBOARDING }
 
 /** Top-level destinations shown in the bottom bar. */
-val tabs = listOf(Screen.HOME, Screen.HISTORY, Screen.INSIGHTS, Screen.COMMUNITY, Screen.SETTINGS)
+val tabs = listOf(Screen.HOME, Screen.INSIGHTS, Screen.FARM, Screen.COMMUNITY, Screen.SETTINGS)
 
 /** One chat bubble. Assistant turns fill in live as the agent pipeline runs. */
 class ChatTurn(val user: Boolean, text: String, val image: android.graphics.Bitmap? = null) {
@@ -54,6 +54,9 @@ class AppState(val ctx: Context) : com.shuddh.lab.core.AgentHost {
     val media = com.shuddh.lab.core.MediaIndex(ctx)
     val geo = com.shuddh.lab.core.Geo(ctx)
     val pantry = com.shuddh.lab.core.PantryStore(ctx)
+    val farmStore by lazy { com.shuddh.lab.core.FarmStore(ctx) }
+    /** A verdict waiting to be broadcast once the mesh is joined. */
+    var pendingMeshAlert by mutableStateOf<String?>(null)
     /** Prefill handed to Pantry from Label Lens. */
     var pendingPantryName by mutableStateOf<String?>(null)
     var pendingPantryExpiry by mutableStateOf<Long?>(null)
@@ -220,6 +223,9 @@ class AppState(val ctx: Context) : com.shuddh.lab.core.AgentHost {
     }
 
     fun go(s: Screen) { nav.add(s) }
+
+    /** How many screens deep the user is (1 = a tab root opened from Home). */
+    val navDepth get() = nav.size
 
     fun tab(s: Screen) {
         nav.clear()

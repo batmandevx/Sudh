@@ -155,7 +155,7 @@ object Agent {
         "lens" to "LENS", "boil" to "BOIL", "boiling" to "BOIL", "oil" to "OIL", "frying" to "OIL", "outbreak" to "OUTBREAK", "sick" to "OUTBREAK", "diarrhoea" to "OUTBREAK", "anaemia" to "ANAEMIA", "mosquito" to "MOSQUITO", "milkman" to "MILKMAN", "exposure" to "EXPOSURE", "ledger" to "EXPOSURE", "sos" to "GUARDIAN", "emergency" to "GUARDIAN", "fall" to "GUARDIAN", "guardian" to "GUARDIAN", "dengue" to "MOSQUITO", "malaria" to "MOSQUITO", "anemia" to "ANAEMIA", "pallor" to "ANAEMIA", "grain" to "GRAIN", "rice" to "GRAIN", "dal" to "GRAIN", "stones" to "GRAIN", "vision" to "VISION", "gesture" to "VISION", "gestures" to "VISION", "heart" to "PULSE", "pulse" to "PULSE", "bpm" to "PULSE", "label" to "LENS", "expiry" to "LENS",
         "wax" to "WAX", "waxed" to "WAX", "polish" to "WAX", "polished" to "WAX", "shiny" to "WAX", "apple" to "WAX", "apples" to "WAX", "fruit" to "WAX",
         "melon" to "ECHO", "ripe" to "ECHO", "tarbooz" to "ECHO", "nariyal" to "ECHO", "doodh" to "PURITY", "adulterated" to "PURITY", "milavat" to "PURITY",
-        "pantry" to "PANTRY", "restock" to "PANTRY", "groceries" to "PANTRY", "sensor lab" to "DART", "tools" to "TOOLS",
+        "farm" to "FARM", "pantry" to "PANTRY", "restock" to "PANTRY", "groceries" to "PANTRY", "sensor lab" to "DART", "tools" to "TOOLS",
     )
 
     /**
@@ -175,8 +175,70 @@ object Agent {
     )
     private val testVerbs = Regex("\\b(is (my|this|the|it|our)|are (my|these|the|they)|check|test|scan|measure|detect|open|start|safe|pure|real|fake|ripe|spoiled|spoilt|fresh|adulterated|waxed|polished|coated|mixed|kya|jaanch|jaanchna|जाँच|shuddh|asli|nakli|how much water)\\b")
 
-    /** Screen for a test request, or null when the message isn't asking for a test. */
+    /**
+     * Problem descriptions ("my milk tastes weird", "water smells of bleach", "apple is too shiny")
+     * → the test that explains them, with a one-line reason. Checked in order; first match wins.
+     */
+    private data class Symptom(val subject: String, val problem: String, val screen: String, val why: String)
+
+    private const val ODD = "weird|weirdly|strange|funny|odd|off|different|unusual|not right|bad|ajeeb|alag|kharab|अजीब"
+    private const val TASTE = "tastes?|tasting|taste like|swad|svaad|स्वाद"
+    private const val SMELL = "smells?|smelly|smelling|odou?r|stinks?|stinky|badboo|बदबू|gandh|गंध"
+
+    private val symptoms = listOf(
+        // Milk
+        Symptom("milk|doodh|dudh|दूध|curd|dahi|paneer|tea|chai", "soapy|soap|bitter|detergent|frothy|foamy|froth|foam|lather|chemical", "PURITY",
+            "a soapy or bitter taste and lasting froth can mean detergent or urea added to milk"),
+        Symptom("milk|doodh|dudh|दूध", "sour|curdled|curdles|splits|split|fatt? ?gaya|phat|cheesy|rotten|stale|spoiled|spoilt", "PURITY",
+            "sourness or splitting usually means the milk is spoiling — the Purity test checks freshness"),
+        Symptom("milk|doodh|dudh|दूध|curd|dahi", "watery|thin|patla|पतला|diluted|bland|pheeka|less creamy|no cream|no malai|less malai", "PURITY",
+            "thin or bland milk is the classic sign of added water — Purity estimates the water %"),
+        Symptom("milk|doodh|dudh|दूध|curd|dahi|paneer|ghee|honey|juice", "$ODD|$TASTE|$SMELL|sticky|chalky|starchy|colou?r|yellow|thick|slimy", "PURITY",
+            "an unusual taste, smell or texture is the first hint of adulteration or spoilage"),
+        // Fruit
+        Symptom("apple|apples|seb|pear|fruit|fruits|orange|lemon|cucumber|kheera", "shiny|shine|glossy|waxy|wax|polished|plastic|too bright|slippery|coating|coated|sticky|white layer|white film", "WAX",
+            "an unnatural shine or waxy film suggests a wax or polish coating"),
+        Symptom("watermelon|tarbooz|tarbuj|melon|kharbuja", "too red|very red|bright red|red inside|dye|colou?r|injected|syringe|bleeds", "ECHO",
+            "an unnaturally red, colour-bleeding flesh can mean injected dye — the melon check includes a dye test"),
+        Symptom("watermelon|tarbooz|tarbuj|melon|coconut|nariyal", "$ODD|$TASTE|bland|pheeka|not sweet|unripe|kaccha|overripe|mushy|hollow|dry|empty", "ECHO",
+            "bland or mushy fruit is usually a ripeness problem — tap test listens to how ripe it is"),
+        // Grain
+        Symptom("rice|chawal|dal|daal|grain|grains|wheat|atta|pulses", "stones?|kankad|kankar|grit|gritty|crunch|insects?|keede|keeda|bugs?|worms?|weevils?|broken|dust|dusty|mud", "GRAIN",
+            "grit, stones or insects show up clearly in a Grain Scan"),
+        Symptom("dal|daal|turmeric|haldi|chilli|mirch|masala|spice|spices|besan", "too yellow|bright yellow|colou?r|stains?|dye|leaves colou?r|red water|yellow water|$ODD|$TASTE", "DART",
+            "bright colour that bleeds into water can mean added dye (metanil yellow, lead chromate) — Sensor Lab checks spices"),
+        // Oil
+        Symptom("oil|tel|ghee|frying", "dark|black|foamy|foam|smoke|smoky|smokes|sticky|thick|rancid|reused|$ODD|$SMELL|$TASTE", "OIL",
+            "darkening, foaming or smoke means the oil is breaking down from reuse"),
+        // Water
+        Symptom("water|paani|pani|tap|tank|borewell|ro|drinking", "bleach|chlorine|swimming pool|pool|$SMELL|rotten egg|egg", "DART",
+            "a chemical or rotten-egg smell can mean excess chlorine or sulphide bacteria — Sensor Lab checks both"),
+        Symptom("water|paani|pani|tap|tank|borewell|ro|drinking", "cloudy|muddy|dirty|yellow|brown|colou?r|turbid|particles|$ODD|$TASTE|salty|metallic|hard|scale|white deposit", "DART",
+            "cloudiness, colour or an odd taste are signs to check water safety"),
+        // Salt / sugar / honey
+        Symptom("salt|namak|sugar|cheeni|chini", "$ODD|$TASTE|chalky|white residue|doesn.?t dissolve|not dissolve|sandy|gritty", "DART",
+            "residue that won't dissolve can mean chalk or sand — Sensor Lab has salt and sugar checks"),
+        Symptom("honey|shahad|shehad", "$ODD|$TASTE|watery|thin|too sweet|crystal|crystallised|crystallized|sugary|syrup", "PURITY",
+            "runny, overly sweet honey can be sugar syrup — Purity compares it against real honey"),
+        // Utensils / home
+        Symptom("steel|utensil|utensils|bartan|pan|vessel|cooker", "rust|rusty|metallic|$TASTE|stains?|magnet|black marks", "MAGNETO",
+            "a metallic taste or rust spots can mean a low-grade steel — the steel check uses the magnetometer"),
+        Symptom("wall|walls|room|cupboard|grain store|flour", "damp|dampness|moist|seepage|mould|mold|fungus|musty|$SMELL", "NAMI",
+            "dampness and musty smells come from hidden moisture — the moisture sonar finds it"),
+    )
+
+    private fun rx(p: String) = Regex("\\b($p)\\b")
+
+    /** (screen, reason) for a described problem, or null. */
+    fun diagnose(q0: String): Pair<String, String>? {
+        val q = q0.lowercase()
+        if (rx("recipe|harmful|dangerous|side effects?|what is|meaning|shopping|grocery|list|remind|alarm|timer|for health|healthy|good for|benefits?|nutrition|calories|protein|send|broadcast|tell|message|sms|mesh|bhejo|warn|neighbou?rs|post").containsMatchIn(q)) return null
+        return symptoms.firstOrNull { rx(it.subject).containsMatchIn(q) && rx(it.problem).containsMatchIn(q) }?.let { it.screen to it.why }
+    }
+
+    /** Screen for a test request or a described problem, or null when the message isn't one. */
     fun testScreen(q0: String): String? {
+        diagnose(q0)?.let { return it.first }
         val q = q0.lowercase()
         if (!testVerbs.containsMatchIn(q)) return null
         if (Regex("\\b(recipe|harmful|dangerous|side effects?|why|what is|meaning)\\b").containsMatchIn(q)) return null
@@ -186,7 +248,7 @@ object Agent {
     private val friendly = mapOf(
         "PURITY" to "Milk & liquid Purity test", "WAX" to "Fruit Shine Check (wax / polish)", "ECHO" to "Melon & coconut tap test",
         "DART" to "Sensor Lab (water, oil, spices)", "GRAIN" to "Grain Scan", "OIL" to "Oil Check", "MAGNETO" to "Steel check",
-        "NAMI" to "Moisture sonar", "LENS" to "Label Lens", "PANTRY" to "Smart pantry", "PULSE" to "Pulse", "TOOLS" to "All tools",
+        "NAMI" to "Moisture sonar", "LENS" to "Label Lens", "PANTRY" to "Smart pantry", "FARM" to "Farm Twin (simulate crops, weather, market, Trait Lab)", "PULSE" to "Pulse", "TOOLS" to "All tools",
     )
 
     fun routerPrompt(question: String, hasImage: Boolean, context: String = ""): String {
@@ -281,6 +343,8 @@ explain photosynthesis -> {"tool":"general","args":{}}""" +
             Units.convert(q0) != null -> c("convert_units", "query" to q0)
             Calc.looksLikeMath(q0) -> c("calculate", "expression" to q0)
             testScreen(q0) != null && !w("shopping|grocery|list|remind|alarm|timer|buy") -> c("open_instrument", "name" to testScreen(q0)!!.lowercase())
+            w("farm|farmer|farming|kheti|kisan|fasal|what (should|can|do) i (grow|plant|sow)|which crop|best crop|sowing|sow|harvest|where (to|should i|can i) sell|when (to|should i) sell|mandi price|gene editing|genome|genetic|crispr|edited (variety|seed|rice)|digital twin|rice.?fish|fish farming|integrated farming|crop simulation|my crops?|soil type|crisproots|leaf disease|leaves (have|has|are|turning)|spots on (the )?leaves|my (cow|buffalo|goat|sheep|cattle)|animal (is )?sick|vaccinat\\w*|government scheme|subsidy|pm.?kisan|crop insurance|kisan credit|measure (my )?(field|land)|field area") ->
+                c("open_instrument", "name" to "farm")
             w("pantry|restock|run out|running out|running low|best time to buy|when to buy|what to buy|stock up") -> c("pantry_brief")
             w("calendar|meeting|appointment") || (w("event") && w("add|create|schedule")) -> c("add_event", "title" to q0, "time" to q0)
             w("shopping|grocery|groceries") && w("show|what|read|my list|list") && !w("add|put") -> c("shopping_show")
@@ -378,6 +442,7 @@ explain photosynthesis -> {"tool":"general","args":{}}""" +
             "pantry_brief" -> host.pantryBrief().also { host.openScreen("PANTRY") }
             "open_instrument" -> {
                 val n = call.args["name"].orEmpty().lowercase()
+                diagnose(question)?.let { (t, why) -> if (host.openScreen(t)) return "That could be a sign: ${why}. Opening ${friendly[t] ?: t.lowercase()} so you can check it now." }
                 testScreen(question)?.let { t -> if (host.openScreen(t)) return "Opening ${friendly[t] ?: t.lowercase()} — follow the steps on screen." }
                 fun has(t: String, k: String) = Regex("\\b$k\\b").containsMatchIn(t)
                 val target = instruments.entries.firstOrNull { has(n, it.key) }?.value

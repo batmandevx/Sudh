@@ -1,5 +1,6 @@
 package com.shuddh.lab.instruments
 
+import androidx.compose.animation.togetherWith
 import android.graphics.Bitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.layout.Spacer
@@ -148,6 +149,8 @@ private class StageInfo {
     var echo: Triple<Double, Double, Int>? = null
     var mag: Double? = null
     var tex: Double? = null
+    /** Echo transfer function, 16 × 1 kHz bands (2–18 kHz), dB — drawn as the echo graph. */
+    var echoBands: FloatArray? = null
 }
 
 private fun arr(d: DoubleArray) = JSONArray().apply { d.forEach { put(it) } }
@@ -171,6 +174,8 @@ private class PhoneSensors : SensorEventListener {
 
 
     private val magN = mutableListOf<Double>()
+    /** Recent field magnitudes (µT) for the live metal-check graph. */
+    val magHist = ArrayDeque<Float>()
     @Volatile var magCollect = false
     @Synchronized fun startMag() { magN.clear(); magCollect = true }
     /** Max rotation rate since the last reset — was the phone held still during a capture? */
@@ -186,7 +191,9 @@ private class PhoneSensors : SensorEventListener {
             Sensor.TYPE_GYROSCOPE -> { gyro = sqrt(e.values[0] * e.values[0] + e.values[1] * e.values[1] + e.values[2] * e.values[2]); gyroMax = maxOf(gyroMax, gyro) }
             Sensor.TYPE_MAGNETIC_FIELD -> {
                 for (i in 0..2) { mag[i] = e.values[i]; magMin[i] = minOf(magMin[i], e.values[i]); magMax[i] = maxOf(magMax[i], e.values[i]) }
-                if (magCollect) magN += sqrt((e.values[0] * e.values[0] + e.values[1] * e.values[1] + e.values[2] * e.values[2]).toDouble())
+                val b = sqrt(e.values[0] * e.values[0] + e.values[1] * e.values[1] + e.values[2] * e.values[2])
+                if (magCollect) magN += b.toDouble()
+                magHist.addLast(b); while (magHist.size > 160) magHist.removeFirst()
             }
             Sensor.TYPE_LIGHT -> lux = e.values[0]
         }
@@ -196,7 +203,7 @@ private class PhoneSensors : SensorEventListener {
 
 /** Purity — how much of a liquid is adulterant, from camera, torch, iQOO ring light and magnetometer, fused into one verdict. */
 @Composable
-fun PurityScreen(app: AppState) {
+fun PurityTest(app: AppState, subject: String? = null, fatPct: Double = 3.0, onExit: (() -> Unit)? = null) {
     val ctx = app.ctx
     val scope = rememberCoroutineScope()
     val cam = remember { CameraHandle() }
@@ -221,6 +228,9 @@ fun PurityScreen(app: AppState) {
     var stage by remember { mutableStateOf(StageInfo()) }
     /** Latest cap ÷ paper ratio per channel from the camera thread — drives the live spectrum bars. */
     val liveRgb = remember { DoubleArray(3) }
+    /** Live brightness of the white paper (0–255) — is there enough, not too much, light? */
+    val liveWhite = remember { FloatArray(1) }
+    var aimOk by remember { mutableStateOf(false) }
     val qc = remember { mutableStateMapOf<String, Boolean>() }
     var status by remember { mutableStateOf<String?>(null) }
     val white = RectF(0.10f, 0.40f, 0.34f, 0.60f)
@@ -256,6 +266,8 @@ fun PurityScreen(app: AppState) {
         return Purity.Refl(DoubleArray(3) { if (r[it].isNaN()) 0.0 else r[it] }) to sd
     }
 
+    val echoHold = remember { arrayOfNulls<FloatArray>(1) }
+
     /** Face-up: torch ON (exposure locked there) then OFF — room-light ratio and torch lock-in from one pose. */
     /** Nami sonar in place (phone held over the cap): 2 pings at a pinned volume; returns (level dB, tilt dB, chirps). */
     suspend fun echoShot(): Triple<Double, Double, Int>? {
@@ -267,7 +279,7 @@ fun PurityScreen(app: AppState) {
         return try {
             runCatching { am.setStreamVolume(stream, (am.getStreamMaxVolume(stream) * 0.85f).toInt().coerceAtLeast(1), 0) }
             val reads = (0 until 2).mapNotNull { kotlinx.coroutines.withContext(Dispatchers.Default) { runCatching { com.shuddh.lab.core.Sonar.analyse(com.shuddh.lab.core.Sonar.capture(ctx)) }.getOrNull() } }
-            com.shuddh.lab.core.Sonar.pool(reads)?.let { r -> Triple(r.bands.average(), com.shuddh.lab.core.Sonar.tilt(r.bands), r.chirpsFound) }
+            com.shuddh.lab.core.Sonar.pool(reads)?.let { r -> echoHold[0] = r.bands; Triple(r.bands.average(), com.shuddh.lab.core.Sonar.tilt(r.bands), r.chirpsFound) }
         } finally { runCatching { am.setStreamVolume(stream, before, 0) } }
     }
 
@@ -316,36 +328,35 @@ fun PurityScreen(app: AppState) {
             narrate("Spectrum: red ${pc[0]}, green ${pc[1]}, blue ${pc[2]} percent of white.")
         }
         info.tex = synchronized(texBuf) { texBuf.toList() }.takeIf { it.size >= 5 }?.sorted()?.let { it[it.size / 2] }
-        // ── 2 · iQOO ring light, every colour checked by the camera ──
-        stageStart(TestStep.RING)
-        narrate("Ring light.")
+        // ── 1b · More colours of light on the same sample (part of the spectrum stage) ──
         val ring = mutableMapOf<Mode, List<Pair<Rgb, Rgb>>>()
         val ringColours = listOf(Mode.RING_R to 0xFFFF0000.toInt(), Mode.RING_G to 0xFF00FF00.toInt(), Mode.RING_B to 0xFF0000FF.toInt(), Mode.RING_W to 0xFFFFFFFF.toInt())
         var ringOk = false
         for ((mode, argb) in if (BackLight.multicolour == false) ringColours.takeLast(1) else ringColours) {
             if (!BackLight.set(ctx, argb)) break
             ringOk = true; ringLive = Color(argb)
-            narrate(when (mode) { Mode.RING_R -> "Red"; Mode.RING_G -> "Green"; Mode.RING_B -> "Blue"; else -> "White" })
             delay(450)
             grab(8, 4000)?.let { ring[mode] = it }
         }
         BackLight.off(ctx); ringLive = null
         cam.lock(false); cam.exposure(0)
-        // ── 3 · Nami echo (in place) ──
+        // ── 2 · Echo ──
+        narrate("Spectrum done. Next, measuring echo. Hold the phone flat and still above the sample, speaker facing it.")
         stageStart(TestStep.ECHO)
-        narrate("Pinging echo.")
+        run { var waited = 0; while (app.voice.speaking && waited < 7000) { delay(100); waited += 100 } }
+        delay(1200)
         // The microphone must not hear the voice: wait for it to finish (max 5 s).
         run { var waited = 0; delay(300); while (app.voice.speaking && waited < 5000) { delay(100); waited += 100 } }
+        echoHold[0] = null
         val echo = echoShot()
-        info.echo = echo
-        narrate(echo?.let { "Echo: ${it.third} chirps, level ${it.first.roundToInt()} decibels." } ?: "Echo skipped.")
-        // ── 4 · Magnetometer ──
+        info.echo = echo; info.echoBands = echoHold[0]; stage = info
+        narrate(echo?.let { "Echo captured: ${it.third} reflections. Next, checking for metal particles. Keep the phone still." } ?: "Echo skipped. Next, checking for metal particles.")
+        // ── 3 · Metal check (magnetometer) ──
         stageStart(TestStep.MAGNET)
-        narrate("Measuring magnetic field.")
-        delay(400)
+        delay(3000)
         val mag = sensors.stopMag()
         info.mag = mag?.first
-        mag?.let { narrate("${it.first.roundToInt()} microtesla. Computing verdict.") }
+        mag?.let { narrate(if (it.second > 1.5) "Magnetic disturbance detected. Computing verdict." else "No magnetic metal detected. Computing verdict.") }
         stageStart(TestStep.VERDICT)
         if (on == null || off == null) { phase = null; return null }
         val reads = mutableMapOf<Mode, Pair<Purity.Refl, DoubleArray>>(); val notes = mutableListOf<Pair<String, Boolean>>()
@@ -462,7 +473,31 @@ fun PurityScreen(app: AppState) {
             val warning = PurityTrain.captureProblem(f)
             val usable = samples.filter { PurityTrain.usable(it.f) }.map { it.label }.distinct()
             val r = PurityTrain.classify(f, samples)
-            if (r == null || usable.size < 2) { busy = null; status = "Train at least 2 kinds first (🎓 Training) — you have ${usable.size}."; android.util.Log.w("PurityDump", "NOT ENOUGH TRAINING ${usable}"); return@launch }
+            if (r == null || usable.size < 2) {
+                // No usable training yet: educated guess from the phone's light-scattering calibration.
+                val g = com.shuddh.lab.core.PurityGuess.guess(f, fatPct)
+                fun lb(id: String) = labels.first { it.id == id }
+                val (label, id) = when (g.kind) {
+                    com.shuddh.lab.core.PurityGuess.Kind.MILK -> lb("pure_milk") to "pure_milk"
+                    com.shuddh.lab.core.PurityGuess.Kind.WATERED_MILK -> PurityTrain.Label("mix", "Milk with ${PurityTrain.range(g.waterPct!!, g.spread / 1.96).let { (a, b) -> "$a–$b" }}% water", "🥛", g.waterPct, false, "milk") to "mix"
+                    com.shuddh.lab.core.PurityGuess.Kind.SPOILED -> lb("spoiled_milk") to "spoiled_milk"
+                    com.shuddh.lab.core.PurityGuess.Kind.WATER -> lb("water") to "water"
+                    com.shuddh.lab.core.PurityGuess.Kind.NOT_MILK -> PurityTrain.Label("not_milk", "Not milk — coloured liquid", "🧃", null, false, "other") to "not_milk"
+                    com.shuddh.lab.core.PurityGuess.Kind.UNCLEAR -> null to "unknown"
+                }
+                val risks = when (g.kind) {
+                    com.shuddh.lab.core.PurityGuess.Kind.WATERED_MILK -> Purity.healthEffects(Purity.Kind.MILK)
+                    com.shuddh.lab.core.PurityGuess.Kind.SPOILED -> listOf("Spoiled milk can carry Salmonella, E. coli and Listeria — vomiting, diarrhoea and fever.", "Boiling doesn't undo souring — throw it away.")
+                    else -> emptyList()
+                } + "Detergent and starch don't change how milk looks — use the Detergent and Starch tests to rule them out."
+                busy = null
+                result = PurityOutcome(label, PurityTrain.Decision(id, g.confidence, null, false), PurityTrain.Result(emptyList(), null, emptyList()),
+                    g.waterPct?.let { it to g.spread / 1.96 }, null, img, g.safe, risks, f, "guess", warning ?: g.why)
+                android.util.Log.w("PurityDump", "GUESS kind=${g.kind} water=${g.waterPct} conf=${g.confidence}")
+                if (g.safe) Haptics.ping(ctx) else Haptics.rumble(ctx, 1f, 900)
+                app.voice.say("${g.title}." + (g.waterPct?.takeIf { g.kind == com.shuddh.lab.core.PurityGuess.Kind.WATERED_MILK }?.let { " About ${it.roundToInt()} percent water." } ?: ""), app.lang)
+                return@launch
+            }
             android.util.Log.w("PurityDump", "TEST " + f.entries.sortedBy { it.key }.joinToString(" ") { "${it.key}=${String.format(java.util.Locale.US, "%.3f", it.value)}" } +
                 " | keys=" + r.features.joinToString(",") + " | " + r.ranked.joinToString { "${it.label}=${(it.p * 100).toInt()}%/d${String.format(java.util.Locale.US, "%.2f", it.dist)}" })
             val top = labels.firstOrNull { it.id == r.ranked.first().label }
@@ -471,18 +506,28 @@ fun PurityScreen(app: AppState) {
             val mix = PurityTrain.onDilutionLine(fit, r)
             val unk = PurityTrain.unknown(r, fit)
             val waterAny = curve?.let { (k, m) -> f[k]?.let { m.waterPct(it) to m.sigmaPct(it, 0.006) } }
-            val water = if (mix || (top?.family == "milk" && top.id != "spoiled_milk" && !unk)) waterAny else null
+            val water0 = if (mix || (top?.family == "milk" && top.id != "spoiled_milk" && !unk)) waterAny else null
             // Second opinion from the on-device AI (text-only: it gets the training and test numbers).
             var op: PurityAi.Opinion? = null
             // The second opinion may never hold up the verdict: skipped if the model is busy, capped at 20 s.
             if (app.llm.hasChat() && !app.llm.busy) {
                 busy = "Comparing with your training…"
-                val prompt = PurityAi.prompt(samples, labels, f, r, water?.first)
+                // The sample photo, described on the phone (labels + colour), goes in with the numbers.
+                val photoLabels = snap[0]?.let { b -> withTimeoutOrNull(4000) { runCatching { com.shuddh.lab.core.Vision.analyse(b).labels }.getOrNull() } }.orEmpty()
+                val prompt = PurityAi.prompt(samples, labels, f, r, water0?.first, com.shuddh.lab.core.SamplePhoto.describe(photoLabels, f))
                 val job = scope.async(Dispatchers.Default) { runCatching { app.llm.generate(app.llm.chatRole(longForm = false), prompt) }.getOrNull() }
                 val text = withTimeoutOrNull(20_000) { job.await() }
                 op = text?.let { PurityAi.parse(it, samples.map { s -> s.label }.distinct()) }
             }
-            val d0 = PurityTrain.decide(r, op?.label, op?.confidence)
+            // The model's own water guess is a light reference on the sensor estimate.
+            val water = water0?.let { (com.shuddh.lab.core.SamplePhoto.blendWater(it.first, op?.waterPct) ?: it.first) to it.second }
+            android.util.Log.w("PurityDump", "AI sample=${op?.sample} water=${op?.waterPct} conf=${op?.confidence} reason=${op?.reason}")
+            // Cross-check with the physics guess: flag a big disagreement on water.
+            val g = com.shuddh.lab.core.PurityGuess.guess(f, fatPct, op?.waterPct)
+            val crossNote = if (top?.id == "pure_milk" && (g.waterPct ?: 0.0) >= 25) "Cross-check: brightness suggests ~${g.waterPct!!.roundToInt()}% water — retest, and train a 50/50 sample." else null
+            val d0 = PurityTrain.decide(r, op?.label, op?.confidence).let { d ->
+                if (op?.sample == "adulterated" && (op.confidence ?: 0.0) >= 60) d.copy(confidence = d.confidence * 0.85) else d
+            }
             // Milk–water mixes get a % range; far-from-everything is "unknown"; weak matches say "not sure".
             val mode = when {
                 mix && water != null -> "mix"
@@ -526,7 +571,7 @@ fun PurityScreen(app: AppState) {
             result = if (fx > 0) {
                 app.prefs.putJson("purity_fixture", JSONObject().put("left", fx - 1))
                 fixture(6 - fx, labels, r, img, f)
-            } else PurityOutcome(lb, if (warning != null) d.copy(confidence = d.confidence * 0.7) else d, r, water ?: waterAny?.takeIf { mode != "class" }, op, img, safe, risks, f, mode, warning)
+            } else PurityOutcome(lb, if (warning != null) d.copy(confidence = d.confidence * 0.7) else d, r, water ?: waterAny?.takeIf { mode != "class" }, op, img, safe, risks, f, mode, warning ?: crossNote)
             android.util.Log.w("PurityDump", "RESULT mode=$mode label=${lb?.id} water=${water?.first} safe=$safe warning=$warning")
             if (safe) Haptics.ping(ctx) else Haptics.rumble(ctx, 1f, 900)
             app.voice.say(if (mode == "unknown") "Unknown sample. Don't consume it." else if (lb == null) "Not sure. Add more training samples, or check the setup." else "${lb.title}. ${if (safe) "Looks safe." else "Not safe."}" + (water?.let { " About ${it.first.roundToInt()} percent water." } ?: "") +
@@ -610,16 +655,17 @@ fun PurityScreen(app: AppState) {
         o.ranked.ranked.take(3).forEach { ev += Evidence("PATTERN", "Matches ${labels.firstOrNull { l -> l.id == it.label }?.title ?: it.label}: ${(it.p * 100).toInt()}% (distance ${fmt(it.dist)}σ)", it.label == o.decision.label) }
         o.water?.let { ev += Evidence("PATTERN", "Estimated added water ${fmt(it.first)}% ± ${fmt(1.96 * it.second)}% (from your water / 50-50 / pure training samples)", it.first < 8) }
         qc.forEach { (t, ok) -> ev += Evidence("QUALITY", t, ok) }
-        ev += Evidence("CALIBRATION", "Training: ${samples.size} samples across ${samples.map { it.label }.distinct().size} classes", samples.size >= 6)
+        ev += if (o.mode == "guess") Evidence("CALIBRATION", "Educated guess — light-scattering curve calibrated on this phone (water, 50/50, pure milk); no training of your own yet", null)
+            else Evidence("CALIBRATION", "Training: ${samples.size} samples across ${samples.map { it.label }.distinct().size} classes", samples.size >= 6)
         val lv = if (o.safe) Level.SAFE else Level.UNSAFE
         return Outcome("Shuddh Purity", "purity_${o.decision.label}", Txt(title), o.water?.first ?: o.decision.confidence, if (o.water != null) "% water" else "% sure", lv,
             "$title · ${o.decision.confidence.toInt()}% sure" + (o.water?.let { " · ≈${it.first.roundToInt()}% water" } ?: ""), (listOf(if (o.safe) "Matches a safe sample you trained." else "Matches an unsafe sample, or has added water.") + o.risks).map { Txt(it) }, ev,
-            "Phone-sensor classification against your own training samples. Not a lab test.", levelLabel = Txt(if (o.safe) "SAFE" else "NOT SAFE"))
+            if (o.mode == "guess") "Educated guess from phone sensors — train your own samples for higher accuracy. Not a lab test." else "Phone-sensor classification against your own training samples. Not a lab test.", levelLabel = Txt(if (o.safe) "SAFE" else "NOT SAFE"))
     }
 
     val classesTrained = samples.map { it.label }.distinct().size
 
-    ScreenFrame("Purity", if (training) "🎓 Training — teach Shuddh your samples" else "What is it — and is it safe?", onBack = { if (training) training = false else { BackLight.off(ctx); app.back() } }) {
+    ScreenFrame(subject ?: "Purity", if (training) "🎓 Training — teach Shuddh your samples" else "Water & adulteration — sensor test", onBack = { if (training) training = false else { BackLight.off(ctx); onExit?.invoke() ?: app.back() } }) {
         if (training) {
             TrainingPage(app, labels, samples, busy, phase, ringLive, stage, liveRgb, sensors, status,
                 onCapture = { trainCapture(it) },
@@ -640,15 +686,15 @@ fun PurityScreen(app: AppState) {
                     busy != null -> FiveStagePanel(phase, busy!!, ringLive, stage, liveRgb, sensors)
                     r != null -> ResultCard(r, labels)
                     else -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(if (classesTrained >= 2) "Ready to test" else "Train once, then test anything", color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 22.sp)
+                        Text(if (classesTrained >= 2) "Ready to test" else "Ready — educated-guess mode", color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 22.sp)
                         Text(if (classesTrained >= 2) "$classesTrained kinds trained · ${samples.size} samples. Fill the cap, hold the phone 15 cm above, tap Run test."
-                            else "Open Training and record water, pure milk, 50/50, fresh and spoiled milk, honey, juice — the phone learns what each looks like to its sensors.",
+                            else "Works now with an educated guess (water %, spoiled, not milk). For higher accuracy, open Training and record your own water, pure milk and 50/50.",
                             color = Palette.muted, fontSize = 13.sp, lineHeight = 18.sp)
                     }
                 }
                 status?.takeIf { busy == null && r == null }?.let { Text(it, color = Palette.amber, fontSize = 13.sp, lineHeight = 18.sp) }
                 if (busy == null) {
-                    Btn(if (r == null) "▶  Run test" else "↻  Test again", Modifier.fillMaxWidth(), enabled = classesTrained >= 2) { runTest() }
+                    Btn(if (r == null) "▶  Run test" else "↻  Test again", Modifier.fillMaxWidth()) { runTest() }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Btn("🎓 Training (${samples.size})", Modifier.weight(1f), primary = classesTrained < 2) { training = true; status = null }
                         if (r != null) Btn("Full report", Modifier.weight(1f), primary = false) { app.show(outcome(r)) }
@@ -658,9 +704,10 @@ fun PurityScreen(app: AppState) {
             result?.let { r -> if (busy == null) MatchCard(r, labels) }
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-            CameraView(cam, Modifier.fillMaxWidth(), widthFraction = 0.6f, overlay = { roi(white, Color.White); roi(cap, Palette.tint(Color(0xFF7DD3FC))) }) { bmp ->
+            CameraView(cam, Modifier.fillMaxWidth(), widthFraction = 0.6f, overlay = { val ok = if (aimOk) Color(0xFF22C55E) else null; roi(white, ok ?: Color.White); roi(cap, ok ?: Palette.tint(Color(0xFF7DD3FC))) }) { bmp ->
                 val w = Frames.meanRgb(bmp, white); val sp = Frames.meanRgb(bmp, cap)
                 for (i in 0..2) liveRgb[i] = ch(sp, i) / ch(w, i).coerceAtLeast(1.0)
+                liveWhite[0] = w.luma
                 val t = capTexture(bmp, cap); synchronized(texBuf) { texBuf.addLast(t); while (texBuf.size > 24) texBuf.removeFirst() }
                 if (wantSnap.getAndSet(false)) snap[0] = cropScaled(bmp, RectF(0.05f, 0.30f, 0.95f, 0.70f), 320)
                 collector.offer(listOf(w to sp))
@@ -668,14 +715,14 @@ fun PurityScreen(app: AppState) {
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(top = 8.dp)) {
                 LegendDot(Color.White, "white paper"); LegendDot(Palette.tint(Color(0xFF7DD3FC)), "cap, filled to the brim")
             }
-            AimHint(liveRgb)
+            AimCoach(liveRgb, liveWhite, sensors) { aimOk = it }
         }
         if (!training) {
             Fold("🔁 Milk Watch — learns your milkman", Color(0xFFA78BFA)) {
                 MilkWatchSection(app, busy == null, onScan = { label -> busy = "Daily scan: $label…"; val sh = shootUp(); busy = null; sh })
             }
             HowItWorks(listOf(
-                "Five stages measure the sample: camera spectrum (room light + torch), the iQOO ring light in colours, a speaker→mic echo, and the magnetometer.",
+                "Each test measures the sample with light of several colours (camera spectrum), a speaker→mic echo sweep, and the magnetometer — then fuses them.",
                 "Training stores those readings — and a photo — for samples you label: water, pure milk, 50/50, fresh and spoiled milk, honey, juice, or your own.",
                 "A test is matched to the nearest trained kind (in units of each feature's own repeatability), and % water comes from your water / 50-50 / pure samples.",
             ))
@@ -685,7 +732,7 @@ fun PurityScreen(app: AppState) {
 
 /** Steps of the full test, in order — shown live while it runs. */
 private enum class TestStep(val label: String, val icon: String, val sensor: String) {
-    SPECTRUM("Spectrum", "🌈", "Camera + torch"), RING("Ring light", "💡", "iQOO RGB ring"), ECHO("Nami echo", "🔊", "Speaker + mic"), MAGNET("Magnet", "🧲", "Magnetometer"), VERDICT("Verdict", "⚖️", "Fusion")
+    SPECTRUM("Spectrum", "🌈", "Camera + coloured light"), ECHO("Echo", "🔊", "Speaker → sample → mic"), MAGNET("Metal check", "🧲", "Magnetometer"), VERDICT("Verdict", "⚖️", "Fusion of all sensors")
 }
 
 /**
@@ -697,64 +744,197 @@ private fun FiveStagePanel(phase: TestStep?, hint: String, ring: Color?, info: S
     val inf = rememberInfiniteTransition(label = "five")
     val pulse by inf.animateFloat(0.35f, 1f, infiniteRepeatable(tween(650), RepeatMode.Reverse), label = "p")
     val wave by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(1100, easing = LinearEasing)), label = "w")
-    // Tick to pull live values from the camera / sensor threads.
     var tick by remember { mutableStateOf(0) }
-    LaunchedEffect(Unit) { while (true) { delay(120); tick++ } }
+    LaunchedEffect(Unit) { while (true) { delay(80); tick++ } }
     @Suppress("UNUSED_VARIABLE") val t = tick
     val idx = phase?.ordinal ?: -1
     val progress by animateFloatAsState(((idx + 0.5f) / TestStep.entries.size).coerceIn(0f, 1f), tween(700), label = "prog")
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(if (hint.startsWith("Recording")) hint.removeSuffix("…") else "Measuring…", color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 20.sp, modifier = Modifier.weight(1f))
+            Text(phase?.label ?: hint.removeSuffix("…"), color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 20.sp, modifier = Modifier.weight(1f))
             Text("${(progress * 100).toInt()}%", color = Palette.cyan, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 18.sp)
         }
-        // Overall progress bar with a moving shimmer.
         Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(Palette.veil(0x22))) {
             Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Palette.accent, Palette.cyan, Color.White.copy(alpha = 0.6f + 0.4f * wave), Palette.cyan))))
         }
-        TestStep.entries.forEach { st ->
-            val done = idx > st.ordinal; val now = idx == st.ordinal
-            val pop by animateFloatAsState(if (now) 1.12f else 1f, androidx.compose.animation.core.spring(dampingRatio = 0.45f, stiffness = 300f), label = "pop${st.ordinal}")
-            val alpha by animateFloatAsState(if (now || done) 1f else 0.45f, tween(400), label = "a${st.ordinal}")
-            val tint = when { now && st == TestStep.RING && ring != null -> ring; now -> Palette.cyan; done -> Palette.accent; else -> Palette.veil(0x33) }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth().graphicsLayer { this.alpha = alpha }.clip(RoundedCornerShape(14.dp)).background(if (now) tint.copy(alpha = 0.10f) else Color.Transparent).padding(6.dp)) {
-                Box(Modifier.size(38.dp).graphicsLayer { scaleX = pop; scaleY = pop }.clip(CircleShape).background(tint.copy(alpha = if (now) 0.18f + 0.2f * pulse else if (done) 0.18f else 0.05f))
-                    .border(2.dp, tint.copy(alpha = if (now) pulse else 1f), CircleShape), contentAlignment = Alignment.Center) {
-                    Text(if (done) "✓" else st.icon, fontSize = 16.sp, color = Palette.accent)
-                }
-                Column(Modifier.weight(1f)) {
-                    Text("${st.ordinal + 1} · ${st.label}", color = if (now || done) Palette.text else Palette.muted, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                    Text(st.sensor, color = Palette.muted, fontSize = 11.sp)
-                }
-                Box(Modifier.size(width = 112.dp, height = 34.dp), contentAlignment = Alignment.CenterEnd) {
-                    when {
-                        st == TestStep.SPECTRUM && (now || done) -> SpectrumBars(if (done) info.specFlash ?: info.specAmb ?: liveRgb.copyOf() else liveRgb.copyOf())
-                        st == TestStep.RING && now -> Box(Modifier.size(30.dp).clip(CircleShape).background((ring ?: Color.Gray).copy(alpha = 0.4f + 0.6f * pulse)))
-                        st == TestStep.RING && done -> Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            info.ring.forEach { (_, seen, ok) -> Box(Modifier.size(18.dp).clip(CircleShape).background(seen).border(2.dp, if (ok) Palette.accent else Palette.red, CircleShape)) }
-                        }
-                        st == TestStep.ECHO && now -> Canvas(Modifier.fillMaxSize()) {
-                            for (k in 0..2) { val ph = (wave + k / 3f) % 1f; drawArc(Palette.cyan.copy(alpha = 1 - ph), -40f, 80f, false, Offset(size.width - size.height * (0.4f + ph), size.height * (0.5f - 0.5f * (0.4f + ph))), Size(size.height * (0.8f + 2 * ph), size.height * (0.4f + ph)), style = Stroke(3f)) }
-                        }
-                        st == TestStep.ECHO && done -> Text(info.echo?.let { "${it.third} chirps" } ?: "skipped", color = Palette.text, fontSize = 12.sp)
-                        st == TestStep.MAGNET && (now || done) -> {
-                            val b = sqrt(sensors.mag.sumOf { (it * it).toDouble() })
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Canvas(Modifier.size(28.dp)) {
-                                    val ang = Math.toRadians((b % 60) * 6.0 - 90).toFloat()
-                                    drawCircle(Palette.ink.copy(alpha = 0.25f), size.minDimension / 2, style = Stroke(2f))
-                                    drawLine(Palette.red, center, Offset(center.x + kotlin.math.cos(ang) * size.width * 0.42f, center.y + kotlin.math.sin(ang) * size.width * 0.42f), 3f, cap = StrokeCap.Round)
-                                }
-                                Text("${fmt(info.mag ?: b)} µT", color = Palette.text, fontSize = 12.sp)
-                            }
-                        }
-                        st == TestStep.VERDICT && now -> Text("combining…", color = Palette.cyan, fontSize = 12.sp)
-                    }
+        // The big live stage: one animated visual per measurement.
+        androidx.compose.animation.AnimatedContent(phase, transitionSpec = {
+            (androidx.compose.animation.fadeIn(tween(350)) + androidx.compose.animation.scaleIn(tween(350), initialScale = 0.92f)).togetherWith(androidx.compose.animation.fadeOut(tween(200)))
+        }, label = "stage") { ph ->
+            Box(Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(18.dp)).background(Color(0xFF0B1220))) {
+                when (ph) {
+                    TestStep.SPECTRUM, null -> Spectrograph(liveRgb.copyOf(), ring, wave, Modifier.fillMaxSize())
+                    TestStep.ECHO -> EchoScene(info.echoBands, wave, Modifier.fillMaxSize())
+                    TestStep.MAGNET -> MagnetScene(synchronized(sensors) { sensors.magHist.toList() }, wave, Modifier.fillMaxSize())
+                    TestStep.VERDICT -> FusionScene(wave, Modifier.fillMaxSize())
                 }
             }
         }
-        if (phase == TestStep.RING) Note("Watch the back of the phone — the ring should glow red, green, blue, then white.", Palette.muted)
+        Text(when (phase) {
+            TestStep.SPECTRUM, null -> "Light of different colours hits the sample; the camera reads how much of each comes back."
+            TestStep.ECHO -> "The speaker sweeps 2→18 kHz. Thick, creamy milk and thin, watered milk reflect the tones differently."
+            TestStep.MAGNET -> "The magnetometer watches for iron / steel particles that would bend the magnetic field."
+            TestStep.VERDICT -> "Combining every sensor into one verdict."
+        }, color = Palette.muted, fontSize = 12.sp, lineHeight = 16.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            TestStep.entries.forEach { st ->
+                val done = idx > st.ordinal; val now = idx == st.ordinal
+                val pop by animateFloatAsState(if (now) 1.08f else 1f, androidx.compose.animation.core.spring(dampingRatio = 0.45f, stiffness = 300f), label = "pop${st.ordinal}")
+                val tint = when { now -> Palette.cyan; done -> Palette.accent; else -> Palette.veil(0x33) }
+                Column(Modifier.weight(1f).graphicsLayer { scaleX = pop; scaleY = pop }.clip(RoundedCornerShape(12.dp))
+                    .background(tint.copy(alpha = if (now) 0.12f + 0.12f * pulse else if (done) 0.12f else 0.05f)).border(1.dp, tint.copy(alpha = if (now) pulse else 0.6f), RoundedCornerShape(12.dp))
+                    .padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(if (done) "✓" else st.icon, fontSize = 15.sp, color = Palette.accent)
+                    Text(st.label, color = if (now || done) Palette.text else Palette.muted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                }
+            }
+        }
+    }
+}
+
+/** Rainbow spectrograph: 400–700 nm band, scanning beam, and the sample's reflectance curve over it. */
+@Composable
+private fun Spectrograph(rgb: DoubleArray, light: Color?, wave: Float, modifier: Modifier) {
+    val r by animateFloatAsState(rgb[0].toFloat().coerceIn(0f, 1.2f), tween(250), label = "sr")
+    val g by animateFloatAsState(rgb[1].toFloat().coerceIn(0f, 1.2f), tween(250), label = "sg")
+    val b by animateFloatAsState(rgb[2].toFloat().coerceIn(0f, 1.2f), tween(250), label = "sb")
+    val rainbow = listOf(Color(0xFF7C3AED), Color(0xFF2563EB), Color(0xFF06B6D4), Color(0xFF22C55E), Color(0xFFEAB308), Color(0xFFF97316), Color(0xFFDC2626))
+    Canvas(modifier) {
+        val w = size.width; val h = size.height; val top = h * 0.12f; val base = h * 0.80f
+        // Soft glow of whatever light is shining (no label — just colour).
+        light?.let { drawRect(androidx.compose.ui.graphics.Brush.radialGradient(listOf(it.copy(alpha = 0.35f), Color.Transparent), Offset(w / 2, h * 0.4f), w * 0.7f)) }
+        // Grid
+        for (k in 0..4) { val y = top + (base - top) * k / 4; drawLine(Color.White.copy(alpha = 0.07f), Offset(0f, y), Offset(w, y), 1f) }
+        // Rainbow strip
+        drawRect(androidx.compose.ui.graphics.Brush.horizontalGradient(rainbow), Offset(0f, base + 6f), Size(w, h * 0.09f))
+        // Sample reflectance curve: smooth through blue (450), green (540), red (610) with gentle ends.
+        fun y(v: Float) = base - (base - top) * (v / 1.2f).coerceIn(0f, 1f)
+        val pts = listOf(0f to b * 0.92f, 0.25f to b, 0.5f to g, 0.7f to r, 1f to r * 0.97f)
+        val path = androidx.compose.ui.graphics.Path(); val fill = androidx.compose.ui.graphics.Path()
+        val n = 60
+        for (i in 0..n) {
+            val x = i / n.toFloat()
+            val seg = pts.zipWithNext().first { x <= it.second.first || it == pts.zipWithNext().last() }
+            val (x0, v0) = seg.first; val (x1, v1) = seg.second
+            val tt = ((x - x0) / (x1 - x0)).coerceIn(0f, 1f); val sm = tt * tt * (3 - 2 * tt)
+            val v = v0 + (v1 - v0) * sm
+            val px = x * w; val py = y(v)
+            if (i == 0) { path.moveTo(px, py); fill.moveTo(px, base); fill.lineTo(px, py) } else { path.lineTo(px, py); fill.lineTo(px, py) }
+        }
+        fill.lineTo(w, base); fill.close()
+        drawPath(fill, androidx.compose.ui.graphics.Brush.horizontalGradient(rainbow.map { it.copy(alpha = 0.35f) }))
+        drawPath(path, Color.White, style = Stroke(4f, cap = StrokeCap.Round))
+        // White-paper reference
+        drawLine(Color.White.copy(alpha = 0.35f), Offset(0f, y(1f)), Offset(w, y(1f)), 2f, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 8f)))
+        // Scanning beam
+        val sx = w * wave
+        drawRect(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.25f), Color.Transparent), sx - 40f, sx + 40f), Offset(sx - 40f, top), Size(80f, base - top))
+        listOf(0.25f to b, 0.5f to g, 0.7f to r).forEachIndexed { k, (x, v) -> drawCircle(listOf(Color(0xFF60A5FA), Color(0xFF4ADE80), Color(0xFFF87171))[k], 7f, Offset(x * w, y(v))) }
+    }
+    Box(modifier.padding(8.dp)) {
+        Text("400 nm", color = Color.White.copy(alpha = 0.6f), fontSize = 9.sp, modifier = Modifier.align(Alignment.BottomStart))
+        Text("700 nm", color = Color.White.copy(alpha = 0.6f), fontSize = 9.sp, modifier = Modifier.align(Alignment.BottomEnd))
+        Text("reflectance vs white paper", color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp, modifier = Modifier.align(Alignment.TopStart))
+        Text("R ${(rgb[0] * 100).toInt()}  G ${(rgb[1] * 100).toInt()}  B ${(rgb[2] * 100).toInt()}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.TopEnd))
+    }
+}
+
+/** Phone above a cup: chirps (colour = pitch) travel down, bounce off the liquid and come back; then H(f). */
+@Composable
+private fun EchoScene(bands: FloatArray?, wave: Float, modifier: Modifier) {
+    val tones = listOf(Color(0xFFDC2626), Color(0xFFF97316), Color(0xFFEAB308), Color(0xFF22C55E), Color(0xFF06B6D4), Color(0xFF7C3AED))
+    Canvas(modifier) {
+        val w = size.width; val h = size.height
+        val cx = w * 0.3f
+        // Phone
+        drawRoundRect(Color(0xFF334155), Offset(cx - 40f, 10f), Size(80f, 22f), androidx.compose.ui.geometry.CornerRadius(8f))
+        drawCircle(Color(0xFF94A3B8), 4f, Offset(cx, 32f))
+        // Cup with liquid
+        val cupTop = h * 0.62f
+        drawRect(Color.White.copy(alpha = 0.9f), Offset(cx - 55f, cupTop + 8f), Size(110f, h * 0.28f))
+        drawRect(Color(0xFFF1F5F9), Offset(cx - 55f, cupTop + 8f), Size(110f, 10f))
+        drawLine(Color.White.copy(alpha = 0.6f), Offset(cx - 60f, cupTop), Offset(cx - 55f, h - 6f), 3f); drawLine(Color.White.copy(alpha = 0.6f), Offset(cx + 60f, cupTop), Offset(cx + 55f, h - 6f), 3f)
+        // Down-going chirps and returning echoes
+        for (k in 0 until 6) {
+            val ph = (wave + k / 6f) % 1f
+            val c = tones[k]
+            if (ph < 0.5f) {
+                val y = 36f + (cupTop - 36f) * (ph / 0.5f)
+                drawArc(c.copy(alpha = 0.9f), 20f, 140f, false, Offset(cx - 30f - 30f * ph, y - 10f), Size(60f + 60f * ph, 20f), style = Stroke(3f))
+            } else {
+                val q = (ph - 0.5f) / 0.5f
+                val y = cupTop - (cupTop - 36f) * q
+                val strength = bands?.let { bb -> ((bb[(k * 15 / 5).coerceAtMost(15)] + 60f) / 60f).coerceIn(0.15f, 1f) } ?: 0.6f
+                drawArc(c.copy(alpha = strength * (1 - q * 0.5f)), 200f, 140f, false, Offset(cx - 60f + 30f * q, y - 10f), Size(120f - 60f * q, 20f), style = Stroke(3f))
+            }
+        }
+        // Frequency response graph on the right
+        val gx = w * 0.58f; val gw = w * 0.38f; val gy = h * 0.15f; val gh = h * 0.7f
+        drawRect(Color.White.copy(alpha = 0.05f), Offset(gx, gy), Size(gw, gh))
+        val bb = bands
+        for (i in 0 until 16) {
+            val v = bb?.let { ((it[i] + 60f) / 60f).coerceIn(0.03f, 1f) } ?: (0.3f + 0.25f * kotlin.math.sin(wave * 6.28f + i * 0.6f)).coerceIn(0.05f, 1f)
+            val bh = gh * v; val bw = gw / 16 * 0.7f
+            drawRect(tones[(i * 6 / 16).coerceAtMost(5)].copy(alpha = if (bb == null) 0.4f else 0.95f), Offset(gx + gw * i / 16, gy + gh - bh), Size(bw, bh))
+        }
+    }
+    Box(modifier.padding(8.dp)) {
+        Text(if (bands == null) "listening…" else "echo strength by pitch", color = Color.White.copy(alpha = 0.75f), fontSize = 10.sp, modifier = Modifier.align(Alignment.TopEnd))
+        Text("2 kHz → 18 kHz", color = Color.White.copy(alpha = 0.6f), fontSize = 9.sp, modifier = Modifier.align(Alignment.BottomEnd))
+    }
+}
+
+/** Field lines around the sample bending with the live magnetometer reading, plus the µT trace. */
+@Composable
+private fun MagnetScene(hist: List<Float>, wave: Float, modifier: Modifier) {
+    val m = hist.takeLast(60)
+    val mean = if (m.isEmpty()) 0f else m.average().toFloat()
+    val sd = if (m.size < 3) 0f else sqrt(m.map { (it - mean) * (it - mean) }.average()).toFloat()
+    Canvas(modifier) {
+        val w = size.width; val h = size.height
+        val c = Offset(w * 0.28f, h * 0.5f)
+        // Cup
+        drawRoundRect(Color.White.copy(alpha = 0.85f), Offset(c.x - 34f, c.y - 22f), Size(68f, 52f), androidx.compose.ui.geometry.CornerRadius(10f))
+        // Field lines (ellipses) that wobble more when the field is disturbed.
+        val wob = (sd * 4f).coerceIn(0f, 18f)
+        for (k in 1..4) {
+            val rx = 40f + k * 18f + wob * kotlin.math.sin(wave * 6.28f + k).toFloat(); val ry = 28f + k * 12f
+            drawOval(Color(0xFF38BDF8).copy(alpha = 0.55f - k * 0.1f), Offset(c.x - rx, c.y - ry), Size(rx * 2, ry * 2), style = Stroke(2f))
+        }
+        // Compass needle
+        val ang = Math.toRadians((mean % 60) * 6.0 + wave * 10).toFloat()
+        drawLine(Color(0xFFF43F5E), c, Offset(c.x + kotlin.math.cos(ang) * 30f, c.y + kotlin.math.sin(ang) * 30f), 5f, StrokeCap.Round)
+        drawCircle(Color.White, 5f, c)
+        // µT trace
+        val gx = w * 0.56f; val gw = w * 0.4f; val gy = h * 0.18f; val gh = h * 0.6f
+        drawRect(Color.White.copy(alpha = 0.05f), Offset(gx, gy), Size(gw, gh))
+        if (m.size >= 2) {
+            val lo = m.min() - 2f; val hi = m.max() + 2f
+            for (i in 1 until m.size) {
+                fun pt(j: Int) = Offset(gx + gw * j / (m.size - 1), gy + gh * (1 - (m[j] - lo) / (hi - lo)))
+                drawLine(Color(0xFF22D3EE), pt(i - 1), pt(i), 3f, StrokeCap.Round)
+            }
+        }
+    }
+    Box(modifier.padding(8.dp)) {
+        Text("${"%.1f".format(mean)} µT  ±${"%.2f".format(sd)}", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.TopEnd))
+        Text(if (sd > 1.5f) "field disturbed" else "steady — no magnetic metal", color = if (sd > 1.5f) Color(0xFFFBBF24) else Color(0xFF4ADE80), fontSize = 10.sp, modifier = Modifier.align(Alignment.BottomEnd))
+    }
+}
+
+/** All readings flying into the centre and fusing. */
+@Composable
+private fun FusionScene(wave: Float, modifier: Modifier) {
+    val cols = listOf(Color(0xFFF87171), Color(0xFF4ADE80), Color(0xFF60A5FA), Color(0xFFFBBF24), Color(0xFF22D3EE), Color(0xFFA78BFA))
+    Canvas(modifier) {
+        val c = center; val r = size.minDimension * 0.4f
+        for (k in 0 until 18) {
+            val ph = (wave + k / 18f) % 1f
+            val a = k * 2.1f + wave * 3f
+            val d = r * (1 - ph)
+            drawCircle(cols[k % cols.size].copy(alpha = 1 - ph * 0.5f), 4f + 4f * (1 - ph), Offset(c.x + kotlin.math.cos(a) * d, c.y + kotlin.math.sin(a) * d))
+        }
+        drawCircle(androidx.compose.ui.graphics.Brush.radialGradient(listOf(Color.White, Color(0xFF22D3EE), Color.Transparent), c, r * 0.35f), r * 0.35f * (0.85f + 0.15f * kotlin.math.sin(wave * 6.28f)))
     }
 }
 
@@ -978,6 +1158,8 @@ private fun Thumb(path: String?, modifier: Modifier) {
 @Composable
 private fun ResultCard(r: PurityOutcome, labels: List<PurityTrain.Label>) {
     r.warning?.let { Text("⚠ $it", color = Palette.amber, fontSize = 12.sp, lineHeight = 16.sp) }
+    if (r.mode == "guess") Text("🔬 Educated guess — calibrated light-scattering model. Train your own samples for higher accuracy.", color = Palette.cyan, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Palette.cyan.copy(alpha = 0.10f)).padding(horizontal = 10.dp, vertical = 6.dp))
     if (r.mode == "fixture") Text("🧪 TEST DATA — not a measurement", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Black,
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color(0xFFFBBF24)).padding(horizontal = 10.dp, vertical = 6.dp))
     val col = if (r.safe) Palette.accent else Palette.red
@@ -1105,20 +1287,41 @@ private fun TrainingPage(
 }
 
 
-/** Live aiming check: is the blue box on the cap, or on the paper? */
+/** Live aiming coach: four checks with a combined readiness ring, updated ~4× a second. */
 @Composable
-private fun AimHint(liveRgb: DoubleArray) {
+private fun AimCoach(liveRgb: DoubleArray, liveWhite: FloatArray, sensors: PhoneSensors, onReady: (Boolean) -> Unit) {
     var tick by remember { mutableStateOf(0) }
-    LaunchedEffect(Unit) { while (true) { delay(300); tick++ } }
+    LaunchedEffect(Unit) { while (true) { delay(250); tick++ } }
     @Suppress("UNUSED_VARIABLE") val t = tick
-    val v = liveRgb.copyOf()
-    val onPaper = v.all { it in 0.90..1.10 } && (v.max() - v.min()) < 0.12
-    val brighter = v.average() > 1.08
-    val (msg, col) = when {
-        onPaper -> "✗ The blue box sees the paper — move so the cap fills it" to Palette.red
-        brighter -> "✗ Cap looks brighter than the paper — white paper in the white box, dark cap" to Palette.amber
-        v.average() < 0.02 -> "… aim at the cap on white paper" to Palette.muted
-        else -> "✓ Blue box is on the cap" to Palette.accent
+    val v = liveRgb.copyOf(); val wl = liveWhite[0]
+    val paperOk = wl in 60f..245f
+    val capOk = !(v.all { it in 0.90..1.10 } && (v.max() - v.min()) < 0.12) && v.average() in 0.05..1.08
+    val lightOk = wl in 60f..235f
+    val steady = sensors.gyro < 0.25f
+    val checks = listOf(
+        Triple("Paper in white box", paperOk, if (wl < 60f) "too dark — more light" else if (wl > 245f) "glare — tilt slightly" else ""),
+        Triple("Sample in blue box", capOk, if (!capOk) "move so the cap fills it" else ""),
+        Triple("Light", lightOk, if (wl < 60f) "turn a light on" else if (wl > 235f) "too bright" else ""),
+        Triple("Steady", steady, if (!steady) "hold still" else ""),
+    )
+    val score = checks.count { it.second }
+    LaunchedEffect(score) { onReady(score == 4) }
+    val prog by animateFloatAsState(score / 4f, tween(300), label = "aim")
+    val col = when (score) { 4 -> Palette.accent; 3 -> Palette.amber; else -> Palette.red }
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(16.dp)).background(col.copy(alpha = 0.08f)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(52.dp), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.size(52.dp)) {
+                drawArc(Palette.veil(0x18), -90f, 360f, false, style = Stroke(6f))
+                drawArc(col, -90f, 360f * prog, false, style = Stroke(6f, cap = StrokeCap.Round))
+            }
+            Text(if (score == 4) "✓" else "$score/4", color = col, fontWeight = FontWeight.Black, fontSize = if (score == 4) 22.sp else 13.sp)
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(if (score == 4) "Aim is perfect — run the test" else checks.first { !it.second }.let { "${it.first}: ${it.third}" }, color = col, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                checks.forEach { (n, ok, _) -> Text((if (ok) "✓ " else "• ") + n.substringBefore(" in").substringBefore(" box"), color = if (ok) Palette.accent else Palette.muted, fontSize = 10.sp) }
+            }
+        }
     }
-    Text(msg, color = col, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
 }
