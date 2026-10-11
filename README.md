@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🔬 SHUDDH — The People's Lab
+<img src="docs/banner.svg" alt="Shuddh — The People's Lab" width="100%"/>
 
 ### Your phone is already a laboratory. Shuddh turns it on.
 
@@ -33,6 +33,28 @@ and an honest "how sure we are" on every verdict.
 <img src="docs/screenshots/crisproots.png" width="19%" alt="CrispRoots farm hub"/>
 <img src="docs/screenshots/assistant.png" width="19%" alt="Ask Shuddh AI"/>
 </div>
+
+---
+
+## 📊 At a glance
+
+<div align="center">
+
+| ⏱ **~25 s** | 💸 **₹0** | 📡 **0** | 🧠 **3 voters** | 🌾 **80** | ✅ **179** |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| per milk test<br/>(vs days at a lab) | per test<br/>(vs ₹500–2,000) | bytes of your scans<br/>uploaded | sensors · physics · AI<br/>vote on each verdict | crop diseases &<br/>pests on-device | unit tests,<br/>0 failures |
+
+</div>
+
+## 🧑‍⚖️ Judges: the 2-minute tour
+
+> 1. **Open the app → tap the Ask bar → say "my milk tastes weird".** The on-device AI opens Purity and tells you why.
+> 2. **Purity:** milk → toned → *water & adulteration*. Watch the animated science, then run it: 🌈 spectrum → 🔊 echo → 🧲 metal check → ⚖️ verdict.
+> 3. **Verdict:** the health-hazard body map → 📄 PDF report → ▦ QR → 📡 warn nearby phones over Bluetooth.
+> 4. **CrispRoots** (centre tab): drag the 3D farm, play the season, switch to *weak monsoon*, read the yield waterfall.
+> 5. **Leaf Doctor:** photograph any leaf → disease, damage %, treatment, fully offline.
+>
+> *No real samples handy?* `adb shell am start -n com.shuddh.lab/.MainActivity --ez purity_fixture true` makes the next 5 Purity runs return clearly badged **TEST DATA**.
 
 ---
 
@@ -72,6 +94,20 @@ Two principles run through everything:
 
 1. **No kit, no cloud.** Core tests use only the phone's own sensors, plus household items such as a dark bottle cap or a clear bottle. The AI runs on the phone, and your scans, photos and audio never leave it.
 2. **Honest numbers.** Every verdict shows how sure it is, how it was measured, and what to do if it's unsure. When the evidence disagrees, Shuddh says **"Not sure — retake"** instead of guessing.
+
+### Why Shuddh is different
+
+| | 🏥 Lab test | 🧪 Strip / reagent kits | 📱 Typical food apps | 🔬 **Shuddh** |
+|---|:---:|:---:|:---:|:---:|
+| Cost per test | ₹500–2,000 | Pay per strip, one adulterant each | Free | **₹0** |
+| Time to result | Days | Minutes | — | **~25 seconds** |
+| Measures *your* sample | ✅ | ✅ | ❌ (look-up only) | ✅ |
+| Works offline, no account | — | ✅ | ❌ | ✅ |
+| % water estimate + confidence | ✅ | ❌ | ❌ | ✅ (screening-grade) |
+| Tells you the health hazard and what to do | Report only | ❌ | Generic | ✅ body map + steps |
+| Evidence you can share / complain with | ✅ | ❌ | ❌ | ✅ hash-chained PDF + QR |
+| Warns your neighbours | ❌ | ❌ | ❌ | ✅ Bluetooth mesh |
+| Also helps the farmer who grows the food | ❌ | ❌ | ❌ | ✅ CrispRoots |
 
 ---
 
@@ -240,6 +276,17 @@ The physics model reproduces all six reference readings stored on our test phone
 
 ---
 
+## 🖼 Screens
+
+| | | | |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/screenshots/home.png" width="200"/> | <img src="docs/screenshots/assistant.png" width="200"/> | <img src="docs/screenshots/purity_liquid.png" width="200"/> | <img src="docs/screenshots/purity_howto.png" width="200"/> |
+| **Home:** four headline tests, AI ask bar | **Ask Shuddh:** describe a problem, get the right test | **Purity step 1:** choose the liquid | **How it works:** animated set-up + the science |
+| <img src="docs/screenshots/crisproots.png" width="200"/> | <img src="docs/screenshots/twin_waterfall.png" width="200"/> | <img src="docs/screenshots/twin_risk.png" width="200"/> | <img src="docs/screenshots/insights.png" width="200"/> |
+| **CrispRoots:** 3D farm twin + feature hub | **Yield waterfall:** where the harvest goes | **Risk map:** water, heat, flood, pests, price, soil | **Insights:** streaks, heat-map, calendar, history |
+
+---
+
 ## 🧭 Everything Shuddh does
 
 ### 🍽 Kitchen & food safety
@@ -265,6 +312,20 @@ The physics model reproduces all six reference readings stored on our test phone
 ### 🐝 Community: Hive
 
 - **Bluetooth mesh:** multi-hop (up to 4 hops), rooms with QR invites, live radar of nearby phones, **photos over BLE** (an ~1.5 KB thumbnail split into pieces of 105 bytes and reassembled), SOS, food alerts.
+<details>
+<summary><b>How a photo travels over Bluetooth, with no internet</b></summary>
+
+```mermaid
+flowchart LR
+    A["📷 Photo"] --> B["Shrink to ~80 px JPEG<br/>≈ 1.5 KB"]
+    B --> C["Split into 105-byte pieces<br/>id | index | total | base64"]
+    C --> D["Each piece = one ≤ 200-byte<br/>BLE advertisement packet"]
+    D --> E["Nearby phones relay<br/>(TTL 4 hops)"]
+    E --> F["Receiver reassembles<br/>progress ring → image"]
+```
+
+</details>
+
 - **Vendor purity seals** (0–100 trust), **Outbreak Watch** (anonymous illness clusters vs a 14-day baseline), **batch alerts**, **Purity Beacon** for shops, **alert QR codes**. No server, no accounts.
 
 ### 🤖 Ask Shuddh
@@ -372,6 +433,21 @@ The language models are text-only. For the Purity photo check, the phone first *
 - **Internet is optional and narrow.** It's used only when you turn on web search, the online map, or CrispRoots weather, place, soil and mandi data. CrispRoots sends only the farm's rounded GPS point.
 - **History is hash-chained** (SHA-256) on the phone, so reports are tamper-evident.
 - **The mesh uses Bluetooth LE**, not Wi-Fi or the internet.
+
+---
+
+## 🛠 Tech stack
+
+| Layer | Technology |
+|---|---|
+| Language & UI | Kotlin 2.2 · Jetpack Compose (Material 3) · custom Canvas animations, light/dark themes |
+| Camera & vision | CameraX · ML Kit (image labelling, OCR Latin + Devanagari) · MediaPipe Tasks (object, hand, face, pose) |
+| On-device ML | TensorFlow Lite (Leaf Doctor MobileNetV2) · MediaPipe LLM Inference (Qwen2.5, Phi-4-mini) · LiteRT-LM (MiniCPM5) |
+| Signal processing | Pure-Kotlin DSP: FFT, chirp matched filter, lock-in detection, MAD-robust statistics, Kalman smoothing, CUSUM |
+| Sensors | Camera, torch, rear ring light (vivo light API), speaker, mic, magnetometer, accelerometer, gyroscope, light sensor, GPS, Bluetooth LE 5, IR blaster |
+| Data & trust | On-device JSON stores · SHA-256 hash-chained history · Android PdfDocument reports · ZXing QR |
+| Optional online data | Open-Meteo · OpenStreetMap Nominatim · ISRIC SoilGrids · AGMARKNET (data.gov.in) · Bing RSS (web search, off by default) |
+| Quality | 179 JUnit tests across physics models, classifiers, fusion, crop simulation, mesh protocol and parsers |
 
 ---
 
