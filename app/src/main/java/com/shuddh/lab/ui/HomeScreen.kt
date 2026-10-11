@@ -63,18 +63,18 @@ import com.shuddh.lab.core.stamp
 
 private data class Tile(val screen: Screen, val name: String, val hardware: String, val detects: String, val color: Color, val glyph: Glyph)
 
-private val tilesList = listOf(
+private val tilesList get() = listOf(
     Tile(Screen.SPECTRUM, "Spectrum", "Flash · camera · grating", "Water chemistry · milk adulterants · refills", Palette.violet, Glyph.SPECTRUM),
     Tile(Screen.POLAR, "Polar", "Flash · camera · gyro", "Sugar syrup in honey by optical rotation", Palette.amber, Glyph.POLAR),
     Tile(Screen.NIR, "NIR", "IR blaster · camera", "Water dilution at 940 nm (lock-in)", Palette.red, Glyph.NIR),
     Tile(Screen.NAMI, "Nami", "Speaker · mic sonar", "Moisture in soil, walls, grain, cloth", Palette.cyan, Glyph.NAMI),
     Tile(Screen.ECHO, "Echo", "Microphone", "Coconut fill · watermelon · container", Palette.blue, Glyph.ECHO),
     Tile(Screen.STRIP, "Strips", "Torch · camera · white ref", "Any colour strip: pH, hardness, arsenic", Palette.accent, Glyph.STRIP),
-    Tile(Screen.SCATTER, "Hawa", "Flash · camera at 90°", "Smoke in air · cloudy water", Color(0xFF9AD0C2), Glyph.SCATTER),
+    Tile(Screen.SCATTER, "Hawa", "Flash · camera at 90°", "Smoke in air · cloudy water", Palette.tint(Color(0xFF9AD0C2)), Glyph.SCATTER),
     Tile(Screen.LENS, "Label Lens", "Camera · on-device OCR", "Expiry date, FSSAI licence, MRP check", Palette.amber, Glyph.STRIP),
     Tile(Screen.WHISTLE, "Whistle", "Microphone · FFT", "Counts pressure-cooker whistles for you", Palette.red, Glyph.ECHO),
     Tile(Screen.MAGNETO, "Magneto", "Compass magnetometer", "Is this steel utensil food-grade 304?", Palette.violet, Glyph.POLAR),
-    Tile(Screen.FLOAT, "Float", "Lactometer", "Added water in milk (CLR → SNF)", Color(0xFFE8F1EC), Glyph.FLOAT),
+    Tile(Screen.FLOAT, "Float", "Lactometer", "Added water in milk (CLR → SNF)", Palette.tint(Color(0xFFE8F1EC)), Glyph.FLOAT),
 )
 
 data class Ready(val ok: Boolean, val text: String)
@@ -111,21 +111,25 @@ fun readiness(app: AppState): Map<Screen, Ready> {
 
 private data class AppIcon(val screen: Screen, val name: String, val color: Color, val glyph: Glyph)
 
-private val foodWater = listOf(
-    AppIcon(Screen.PURITY, "Purity", Color(0xFFE8F1EC), Glyph.FLOAT),
+private val foodWater get() = listOf(
+    AppIcon(Screen.PURITY, "Purity", Palette.tint(Color(0xFFE8F1EC)), Glyph.FLOAT),
     AppIcon(Screen.ECHO, "Coconut·Melon", Palette.blue, Glyph.ECHO),
     AppIcon(Screen.NAMI, "Moisture", Palette.cyan, Glyph.NAMI),
     AppIcon(Screen.WHISTLE, "Whistle", Palette.red, Glyph.COOKER),
+    AppIcon(Screen.WAX, "Fruit polish", Palette.red, Glyph.SPARK),
+    AppIcon(Screen.DART, "Sensor Lab", Palette.violet, Glyph.SPECTRUM),
+    AppIcon(Screen.LENS, "Label Lens", Palette.amber, Glyph.STRIP),
+    AppIcon(Screen.GRAIN, "Grain", Color(0xFFD97706), Glyph.SCATTER),
 )
-private val soundSensors = listOf(
+private val soundSensors get() = listOf(
     AppIcon(Screen.SPECTRUM, "Spectrum", Palette.violet, Glyph.SPECTRUM),
     AppIcon(Screen.POLAR, "Polariser", Palette.amber, Glyph.POLAR),
-    AppIcon(Screen.FLOAT, "Lactometer", Color(0xFFE8F1EC), Glyph.FLOAT),
+    AppIcon(Screen.FLOAT, "Lactometer", Palette.tint(Color(0xFFE8F1EC)), Glyph.FLOAT),
     AppIcon(Screen.STRIP, "Strips", Palette.accent, Glyph.STRIP),
 )
-private val moreTools = listOf(
+private val moreTools get() = listOf(
     AppIcon(Screen.MAGNETO, "Steel", Palette.violet, Glyph.MAGNET),
-    AppIcon(Screen.SCATTER, "Air", Color(0xFF9AD0C2), Glyph.SCATTER),
+    AppIcon(Screen.SCATTER, "Air", Palette.tint(Color(0xFF9AD0C2)), Glyph.SCATTER),
     AppIcon(Screen.MODELS, "AI models", Palette.violet, Glyph.SPARK),
     AppIcon(Screen.GUIDE, "Kit guide", Palette.amber, Glyph.KIT),
 )
@@ -245,18 +249,124 @@ fun HomeScreen(app: AppState) {
         ) {
             HomeHeader(app)
             DartBanner(Modifier.enter(1)) { app.go(Screen.DART) }
-            HeroCard(app, Modifier.enter(1))
-            LabPulse(app, ready, Modifier.enter(2))
-            AskBar(Modifier.enter(3)) { app.go(Screen.ASSISTANT) }
-            QuickActions(app, Modifier.enter(4))
-            IconSection("Test with just your phone", foodWater, ready, app, Modifier.enter(5))
-            IconSection("Needs a small kit (CD, polariser, strips)", soundSensors, ready, app, Modifier.enter(6))
-            IconSection("More tools", moreTools, ready, app, Modifier.enter(7))
-            ExpiringStrip(app)
-            DiscoverRow(app, Modifier.enter(8))
-            WhyIndiaCard(Modifier.enter(9))
+            AskBar(Modifier.enter(2)) { app.go(Screen.ASSISTANT) }
+            MainTests(app, Modifier.enter(3))
+            HeroCard(app, Modifier.enter(4))
+            ToolsEntry(Modifier.enter(5)) { app.go(Screen.TOOLS) }
+            WhyIndiaCard(Modifier.enter(6))
             if (records.isNotEmpty()) RecentStrip(app)
             Spacer(Modifier.height(96.dp))
+        }
+    }
+}
+
+/** Everything that isn't one of the four headline tests lives here, grouped. */
+@Composable
+fun ToolsScreen(app: AppState) {
+    val ready = readiness(app)
+    ScreenFrame("Tools", "Every instrument and helper in Shuddh", onBack = { app.back() }) {
+        SmartPantryCard(app, Modifier.enter(0))
+        LabPulse(app, ready, Modifier.enter(0))
+        QuickActions(app, Modifier.enter(1))
+        IconSection("Phone-sensor tests", foodWater, ready, app, Modifier.enter(2))
+        IconSection("Needs a small kit (CD, polariser, strips)", soundSensors, ready, app, Modifier.enter(3))
+        IconSection("More tools", moreTools, ready, app, Modifier.enter(4))
+        ExpiringStrip(app)
+        DiscoverRow(app, Modifier.enter(5))
+    }
+}
+
+/** Pantry teaser: what runs out soon — taps through to the pantry. */
+@Composable
+private fun SmartPantryCard(app: AppState, modifier: Modifier) {
+    val due = app.pantry.restock()
+    val stock = com.shuddh.lab.core.PantrySmart.tips().filter { it.advice == com.shuddh.lab.core.PantrySmart.Advice.STOCK_UP }
+    Glass(modifier.clickable { app.go(Screen.PANTRY) }, glow = Palette.blue, padding = 14) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            FeatureIcon(FIcon.JAR, Palette.blue, 34.dp)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(tr("Smart pantry"), color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text(
+                    if (due.isNotEmpty()) "Buy soon: " + due.take(3).joinToString { "${it.emoji} ${it.label}" }
+                    else if (stock.isNotEmpty()) "Cheapest now: " + stock.take(3).joinToString { "${it.season.emoji} ${it.season.label}" }
+                    else "Restock reminders and best time to buy",
+                    color = Palette.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text("›", color = Palette.blue, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+private data class MainTest(val screen: Screen, val icon: FIcon, val title: String, val sub: String, val color: Color)
+
+/** The four headline tests — big, animated, one tap each. */
+@Composable
+private fun MainTests(app: AppState, modifier: Modifier) {
+    val tests = listOf(
+        MainTest(Screen.PURITY, FIcon.MILK, "Milk purity", "Water %, spoiled, detergent", Color(0xFF0EA5E9)),
+        MainTest(Screen.WAX, FIcon.SHIELD, "Fruit polish", "Wax-coated apples & fruit", Color(0xFFE11D48)),
+        MainTest(Screen.ECHO, FIcon.DROP, "Melon · Coconut", "Tap to hear ripeness", Color(0xFF16A34A)),
+        MainTest(Screen.DART, FIcon.POT, "Water & oil", "Sensor Lab safety checks", Color(0xFF7C3AED)),
+    )
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(tr("Start a test"), color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+        tests.chunked(2).forEachIndexed { r, row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEachIndexed { i, t -> MainTestCard(t, Modifier.weight(1f).enter(3 + r * 2 + i)) { app.go(t.screen) } }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MainTestCard(t: MainTest, modifier: Modifier, onClick: () -> Unit) {
+    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.94f else 1f, androidx.compose.animation.core.spring(dampingRatio = 0.5f), label = "mt")
+    val inf = rememberInfiniteTransition(label = "mtg")
+    val glow by inf.animateFloat(0.10f, 0.22f, infiniteRepeatable(tween(1800), RepeatMode.Reverse), label = "g")
+    Column(
+        modifier.graphicsLayer { scaleX = scale; scaleY = scale }.clip(RoundedCornerShape(24.dp))
+            .background(Brush.linearGradient(listOf(t.color.copy(alpha = glow), Palette.surface)))
+            .border(1.dp, t.color.copy(alpha = 0.35f), RoundedCornerShape(24.dp))
+            .clickable(src, null, onClick = onClick).height(186.dp).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(t.color.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+            FeatureIcon(t.icon, t.color, 34.dp)
+        }
+        Text(tr(t.title), color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(tr(t.sub), color = Palette.muted, fontSize = 11.sp, maxLines = 2, lineHeight = 14.sp, modifier = Modifier.weight(1f))
+        Text(tr("Start") + " →", color = t.color, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+    }
+}
+
+/** Single doorway to every other instrument, with a slowly cycling preview of what's inside. */
+@Composable
+private fun ToolsEntry(modifier: Modifier, onClick: () -> Unit) {
+    val inf = rememberInfiniteTransition(label = "te")
+    val t by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(6000, easing = LinearEasing)), label = "t")
+    val icons = listOf(FIcon.HEART, FIcon.POT, FIcon.PAN, FIcon.JAR, FIcon.SIREN, FIcon.EYE, FIcon.BOOK, FIcon.NETWORK)
+    val colors = listOf(Palette.red, Color(0xFFF97316), Palette.amber, Palette.accent, Palette.red, Palette.violet, Palette.cyan, Palette.blue)
+    Glass(modifier.clickable(onClick = onClick), glow = Palette.violet, padding = 16) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(tr("All tools"), color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(tr("Health, kitchen, community, AI and lab instruments"), color = Palette.muted, fontSize = 12.sp)
+            }
+            Text("›", color = Palette.violet, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            icons.forEachIndexed { i, ic ->
+                val phase = ((t * icons.size - i) % icons.size + icons.size) % icons.size
+                val lift = if (phase < 1f) kotlin.math.sin(phase * Math.PI).toFloat() else 0f
+                Box(Modifier.graphicsLayer { translationY = -10f * lift; scaleX = 1f + 0.15f * lift; scaleY = 1f + 0.15f * lift }
+                    .size(34.dp).clip(CircleShape).background(colors[i].copy(alpha = 0.12f + 0.12f * lift)), contentAlignment = Alignment.Center) {
+                    FeatureIcon(ic, colors[i], 22.dp, animated = false)
+                }
+            }
         }
     }
 }
@@ -277,7 +387,7 @@ private fun DartBanner(modifier: Modifier, onClick: () -> Unit) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
             listOf("🥛 Milk", "💧 Water", "🍳 Oil", "🌾 Grain").forEach {
                 Text(it, color = Color.White, fontSize = 12.sp, maxLines = 1, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(50)).background(Color(0x33FFFFFF)).padding(vertical = 6.dp))
+                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(50)).background(Palette.veil(0x33)).padding(vertical = 6.dp))
             }
         }
         Text("📷 🔦 🎤 📳 🧲  → safe or not, and how sure  →", color = Color(0xFFE0E7FF), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
@@ -292,7 +402,7 @@ private fun LabPulse(app: AppState, ready: Map<Screen, Ready>, modifier: Modifie
     val chainIntact = app.store.verifyChain() == -1
     Column(
         modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))
-            .background(Brush.linearGradient(listOf(plan.color.copy(alpha = 0.19f), Color(0x1AFFFFFF), Color(0x08000000))))
+            .background(Brush.linearGradient(listOf(plan.color.copy(alpha = 0.19f), Palette.veil(0x1A), Palette.well(0x08))))
             .border(1.dp, plan.color.copy(alpha = 0.42f), RoundedCornerShape(24.dp))
             .clickable { if (plan.screen in tabs) app.tab(plan.screen) else app.go(plan.screen) }
             .padding(16.dp),
@@ -314,14 +424,14 @@ private fun LabPulse(app: AppState, ready: Map<Screen, Ready>, modifier: Modifie
         Text(plan.detail, color = Palette.muted, fontSize = 13.sp, lineHeight = 18.sp)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                plan.action.uppercase(), color = Color(0xFF032016), fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                plan.action.uppercase(), color = Palette.onAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.clip(RoundedCornerShape(50)).background(Brush.horizontalGradient(listOf(plan.color, plan.color.copy(alpha = 0.75f)))).padding(horizontal = 13.dp, vertical = 8.dp),
             )
             Spacer(Modifier.width(10.dp))
             Text("Tap to open", color = Palette.muted, fontSize = 11.sp)
         }
         Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(Color(0x26000000)).padding(horizontal = 11.dp, vertical = 9.dp),
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(Palette.well(0x26)).padding(horizontal = 11.dp, vertical = 9.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -365,7 +475,7 @@ private fun HomeHeader(app: AppState) {
             Text(
                 "shuddh",
                 style = androidx.compose.ui.text.TextStyle(
-                    brush = Brush.linearGradient(listOf(Color(0xFFEFF4FA), Color(0xFF8EF0C8), Color(0xFF7DD3FC))),
+                    brush = Brush.linearGradient(if (UiPrefs.light) listOf(Color(0xFF0F172A), Color(0xFF047857), Color(0xFF0369A1)) else listOf(Color(0xFFEFF4FA), Color(0xFF8EF0C8), Color(0xFF7DD3FC))),
                     fontSize = 24.sp, fontWeight = FontWeight.Black, fontFamily = Display, letterSpacing = (-0.8).sp,
                 ),
             )
@@ -402,7 +512,7 @@ private fun HeroCard(app: AppState, modifier: Modifier) {
     }
     Column(
         modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp))
-            .background(Brush.linearGradient(listOf(Color(0xFF1B2B4A), Color(0xFF12322B), Color(0xFF0F1A2A))))
+            .background(Brush.linearGradient(if (UiPrefs.light) listOf(Color(0xFFE8F0FF), Color(0xFFE6F7F0), Color.White) else listOf(Color(0xFF1B2B4A), Color(0xFF12322B), Color(0xFF0F1A2A))))
             .border(1.dp, Brush.linearGradient(listOf(Color(0x5534D399), Color(0x1122D3EE))), RoundedCornerShape(28.dp))
             .clickable { app.tab(Screen.INSIGHTS) }.padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -416,7 +526,7 @@ private fun HeroCard(app: AppState, modifier: Modifier) {
                 score?.second?.let { Badge(it, if (it.startsWith("No failures")) Palette.accent else Palette.amber) }
             }
         }
-        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0x33000000)).padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Palette.well(0x33)).padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             HeroStat("${records.size}", "scans", Palette.text, Modifier.weight(1f))
             VDivider()
             HeroStat("${records.count { it.level == Level.UNSAFE }}", "unsafe", Palette.red, Modifier.weight(1f))
@@ -519,7 +629,7 @@ private fun LineIcon(k: QI, c: Color, modifier: Modifier) {
                     lineTo(w * 0.95f, h * 0.82f); lineTo(w * 0.65f, h * 0.94f); lineTo(w * 0.35f, h * 0.82f); lineTo(w * 0.05f, h * 0.94f); close() }
                 drawPath(fold, c.copy(alpha = 0.35f), style = st)
                 drawCircle(c, w * 0.17f, androidx.compose.ui.geometry.Offset(w * 0.5f, h * 0.42f))
-                drawCircle(Color(0xFF0E1522), w * 0.07f, androidx.compose.ui.geometry.Offset(w * 0.5f, h * 0.42f))
+                drawCircle(Palette.bg, w * 0.07f, androidx.compose.ui.geometry.Offset(w * 0.5f, h * 0.42f))
                 drawLine(c, androidx.compose.ui.geometry.Offset(w * 0.5f, h * 0.58f), androidx.compose.ui.geometry.Offset(w * 0.5f, h * 0.74f), st.width, st.cap)
             }
             QI.REPORT -> {
@@ -730,8 +840,8 @@ private fun DiscoverRow(app: AppState, modifier: Modifier) {
         ),
         "🍳 Kitchen safety" to listOf(
             Feature(FIcon.POT, "Boil Guard", "safe drinking water", Color(0xFFF97316)) { app.go(Screen.BOIL) },
-            Feature(FIcon.PAN, "Oil Check", "frying-oil reuse", Color(0xFFFDE047)) { app.go(Screen.OIL) },
-            Feature(FIcon.GRAIN, "Grain Scan", "stones · insects · broken", Color(0xFFD9F99D)) { app.go(Screen.GRAIN) },
+            Feature(FIcon.PAN, "Oil Check", "frying-oil reuse", Palette.tint(Color(0xFFFDE047))) { app.go(Screen.OIL) },
+            Feature(FIcon.GRAIN, "Grain Scan", "stones · insects · broken", Palette.tint(Color(0xFFD9F99D))) { app.go(Screen.GRAIN) },
             Feature(FIcon.JAR, "Pantry", "${app.pantry.items.size} tracked", Palette.accent) { app.go(Screen.PANTRY) },
         ),
         "🌐 Community" to listOf(

@@ -78,7 +78,7 @@ import kotlin.math.sin
 private const val MSR = 22050
 private const val MN = 4096
 
-private val kindColor = mapOf(Kind.AEDES to Color(0xFFF43F5E), Kind.ANOPHELES to Color(0xFFF97316), Kind.CULEX to Color(0xFFFBBF24), Kind.MALE to Color(0xFF34D399))
+private val kindColor = mapOf(Kind.AEDES to Color(0xFFF43F5E), Kind.ANOPHELES to Color(0xFFF97316), Kind.CULEX to Palette.tint(Color(0xFFFBBF24)), Kind.MALE to Color(0xFF34D399))
 
 /** Mosquito Radar — wingbeat pitch + time of day → likely mosquito type and the disease it can carry. */
 @Composable
@@ -167,7 +167,7 @@ fun MosquitoScreen(app: AppState) {
                 }
             }
             val pct by animateFloatAsState(checks.size / MosquitoRadar.breedingChecklist.size.toFloat(), tween(500), label = "chk")
-            Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.06f))) {
+            Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Palette.ink.copy(alpha = 0.06f))) {
                 Box(Modifier.fillMaxWidth(pct).height(8.dp).clip(RoundedCornerShape(4.dp)).background(Brush.horizontalGradient(listOf(Palette.cyan, Palette.accent))))
             }
             Text(if (checks.size == MosquitoRadar.breedingChecklist.size) "🎉 Home is breeding-free this week" else "${checks.size}/${MosquitoRadar.breedingChecklist.size} done",
@@ -266,7 +266,7 @@ private fun ProbBar(k: Kind, p: Float, i: Int) {
     val c = kindColor[k]!!
     Column(Modifier.padding(vertical = 3.dp)) {
         Row { Text("${k.emoji} ${k.label}", color = Palette.text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.weight(1f)); Text("${(p * 100).toInt()}%", color = c, fontWeight = FontWeight.Black) }
-        Box(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)).background(Color.White.copy(alpha = 0.06f))) {
+        Box(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)).background(Palette.ink.copy(alpha = 0.06f))) {
             Box(Modifier.fillMaxWidth(a).height(10.dp).clip(RoundedCornerShape(5.dp)).background(Brush.horizontalGradient(listOf(c.copy(alpha = 0.5f), c))))
         }
         Text("Carries: ${k.disease}", color = Palette.muted, fontSize = 11.sp)

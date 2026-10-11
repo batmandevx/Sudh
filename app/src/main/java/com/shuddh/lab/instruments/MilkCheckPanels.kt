@@ -94,7 +94,7 @@ fun SpoilagePanel(app: AppState, type: MilkType) {
         return xs.sorted()[7]
     }
 
-    Glass(glow = res?.let { Color(levelOf(Spoilage.call(it, fresh)).argb) } ?: Color(0xFFFDE68A), padding = 18) {
+    Glass(glow = res?.let { Color(levelOf(Spoilage.call(it, fresh)).argb) } ?: Palette.tint(Color(0xFFFDE68A)), padding = 18) {
         val r = res
         if (r == null) {
             Text("Is this ${type.label.lowercase()} milk spoiled?", color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 20.sp)
@@ -111,7 +111,7 @@ fun SpoilagePanel(app: AppState, type: MilkType) {
         }
     }
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-        CameraView(cam, Modifier.fillMaxWidth(), widthFraction = 0.6f, overlay = { roi(box, Color(0xFFFDE68A)) }) { bmp -> val (l, w, h) = lumaBox(bmp, box); live[0] = Spoilage.speckle(l, w, h) }
+        CameraView(cam, Modifier.fillMaxWidth(), widthFraction = 0.6f, overlay = { roi(box, Palette.tint(Color(0xFFFDE68A))) }) { bmp -> val (l, w, h) = lumaBox(bmp, box); live[0] = Spoilage.speckle(l, w, h) }
         Text("📷 camera + 🔦 torch · milk film inside the box", color = Palette.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -159,13 +159,13 @@ fun DetergentPanel(app: AppState, type: MilkType) {
     var res by remember(type) { mutableStateOf<Pair<Double, Double?>?>(null) }
     var lastRem by remember { mutableStateOf<Double?>(null) }
 
-    Glass(glow = res?.let { Color(Dart.foamVerdict(it.first, control).first.argb) } ?: Color(0xFF5EEAD4), padding = 18) {
+    Glass(glow = res?.let { Color(Dart.foamVerdict(it.first, control).first.argb) } ?: Palette.tint(Color(0xFF5EEAD4)), padding = 18) {
         val r = res
         if (on) {
             val el = ((System.nanoTime() - t0) / 1e9).toInt()
             Text("Watching the foam · ${(60 - el).coerceAtLeast(0)} s", color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 20.sp)
             val p by animateFloatAsState(el / 60f, tween(900), label = "f")
-            Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(Color(0x22FFFFFF))) { Box(Modifier.fillMaxWidth(p.coerceIn(0f, 1f)).fillMaxHeight().background(Color(0xFF5EEAD4))) }
+            Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(Palette.veil(0x22))) { Box(Modifier.fillMaxWidth(p.coerceIn(0f, 1f)).fillMaxHeight().background(Palette.tint(Color(0xFF5EEAD4)))) }
         } else if (r == null) {
             Text("Detergent in this ${type.label.lowercase()} milk?", color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 20.sp)
             Text("Put equal parts milk and water in a clear bottle, close it, shake hard for 10 s, stand it up and point the box at the foam.", color = Palette.muted, fontSize = 13.sp, lineHeight = 18.sp)
@@ -179,17 +179,17 @@ fun DetergentPanel(app: AppState, type: MilkType) {
         }
     }
     if (series.size > 4) {
-        Canvas(Modifier.fillMaxWidth().height(110.dp).clip(RoundedCornerShape(12.dp)).background(Color(0x33000000))) {
+        Canvas(Modifier.fillMaxWidth().height(110.dp).clip(RoundedCornerShape(12.dp)).background(Palette.well(0x33))) {
             val st = series.take(4).map { it.second }.average().takeIf { it > 0 } ?: 1.0
             fun X(t: Double) = (t / 60 * size.width).toFloat()
             fun Y(v: Double) = (size.height - (v / st / 1.2).coerceIn(0.0, 1.0) * size.height).toFloat()
-            series.toList().zipWithNext().forEach { (a, b) -> drawLine(Color(0xFF5EEAD4), Offset(X(a.first), Y(a.second)), Offset(X(b.first), Y(b.second)), 4f, cap = StrokeCap.Round) }
+            series.toList().zipWithNext().forEach { (a, b) -> drawLine(Palette.tint(Color(0xFF5EEAD4)), Offset(X(a.first), Y(a.second)), Offset(X(b.first), Y(b.second)), 4f, cap = StrokeCap.Round) }
             control?.let { c -> drawLine(Color.White.copy(alpha = 0.5f), Offset(0f, Y(c * st)), Offset(size.width, Y(c * st)), 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))) }
         }
         Text("Foam over 60 s · dashed: where pure milk ends up", color = Palette.muted, fontSize = 10.sp)
     }
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-        CameraView(cam, Modifier.fillMaxWidth(), widthFraction = 0.6f, overlay = { roi(box, Color(0xFF5EEAD4)) }) { bmp ->
+        CameraView(cam, Modifier.fillMaxWidth(), widthFraction = 0.6f, overlay = { roi(box, Palette.tint(Color(0xFF5EEAD4))) }) { bmp ->
             if (on) { val v = bubbles(bmp, box); val t = (System.nanoTime() - t0) / 1e9; synchronized(series) { series += t to v } }
         }
         Text("📷 camera · foam layer inside the box", color = Palette.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))

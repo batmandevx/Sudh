@@ -347,6 +347,9 @@ fun EchoScreen(app: AppState) {
     val melon = profile.id == "watermelon"
     var kg by remember { mutableStateOf(app.prefs.json("melon")?.optDouble("kg", 5.0) ?: 5.0) }
     var dye by remember(profile) { mutableStateOf<Pair<Double, Double>?>(null) } // (a*, confidence)
+    var weighed by remember(profile) { mutableStateOf(false) }
+    var spot by remember(profile) { mutableStateOf<Pair<Double, Double>?>(null) } // (b*, a*) of the field spot
+    var surface by remember(profile) { mutableStateOf<Pair<Double, Double>?>(null) } // (rind texture CV, glare fraction)
     ScreenFrame(if (melon) "Watermelon check" else "Tap Test",
         if (melon) "① knock → ripeness  ·  ② tissue → natural colour or dye" else "Knock → sound + vibration → ${profile.goodLabel.en.lowercase()} or ${profile.badLabel.en.lowercase()}?",
         onBack = { listening = false; app.back() }) {
@@ -354,10 +357,10 @@ fun EchoScreen(app: AppState) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             profiles.forEach { p ->
                 val sel = p == profile
-                val bg by animateColorAsState(if (sel) Palette.blue.copy(alpha = 0.2f) else Color(0x10FFFFFF), tween(300), label = "bg")
+                val bg by animateColorAsState(if (sel) Palette.blue.copy(alpha = 0.2f) else Palette.veil(0x10), tween(300), label = "bg")
                 Column(
                     Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(bg)
-                        .border(1.5.dp, if (sel) Palette.blue else Color(0x22FFFFFF), RoundedCornerShape(16.dp))
+                        .border(1.5.dp, if (sel) Palette.blue else Palette.veil(0x22), RoundedCornerShape(16.dp))
                         .clickable { profile = p; taps.clear(); status = "" }.padding(vertical = 10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
@@ -367,7 +370,18 @@ fun EchoScreen(app: AppState) {
             }
         }
 
-        if (melon) MelonSteps(ripe = pg != null && model != null, dyeDone = dye != null)
+        if (melon) {
+            MelonSteps(weighed, spot != null, recent.size >= 3, weighed && spot != null && recent.size >= 3)
+            Glass(padding = 14) {
+                Text("① WEIGHT", color = Color(0xFFF87171), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                Stepper("Watermelon weight", "${one(kg)} kg", "from the shop scale", Color(0xFFF87171)) { d ->
+                    kg = (kg + d * 0.5).coerceIn(1.0, 15.0); weighed = true; app.prefs.putJson("melon", org.json.JSONObject().put("kg", kg))
+                }
+                if (!weighed) Btn("This weight is right", Modifier.fillMaxWidth(), primary = false) { weighed = true }
+            }
+            FieldSpotCheck(app) { b, a, tex, glare -> spot = b to a; surface = tex to glare }
+            Text("③ KNOCK 3 TIMES", color = Color(0xFFF87171), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+        }
         // Hero: knock zone + result
         val glow = when { pg == null -> Palette.blue; pg >= 0.7 -> Palette.accent; pg >= 0.35 -> Palette.amber; else -> Palette.red }
         Glass(glow = glow, padding = 18) {
@@ -395,13 +409,9 @@ fun EchoScreen(app: AppState) {
         }
 
         if (melon) {
-            Glass(padding = 14) {
-                Stepper("Watermelon weight", "${one(kg)} kg", "from the shop scale — makes the stiffness index comparable", Color(0xFFF87171)) { d ->
-                    kg = (kg + d * 0.5).coerceIn(1.0, 15.0); app.prefs.putJson("melon", org.json.JSONObject().put("kg", kg))
-                }
-            }
+            MelonReport(pg?.takeIf { model != null && recent.size >= 3 }, spot, kg, taps.lastOrNull { !it.clipped }?.peakHz, dye, surface)
+            Text("EXTRA · SAFETY", color = Palette.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
             DyeCheck(app) { a, c -> dye = a to c }
-            MelonReport(pg?.takeIf { model != null }, f, dye)
         }
         // Teach: two tiles
         Text("TEACH IT · YOUR OWN ${profile.id.uppercase()}S", color = Palette.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
@@ -463,12 +473,12 @@ private fun KnockZone(emoji: String, listening: Boolean, knocks: Int, vib: Boole
                     drawCircle(Palette.blue.copy(alpha = (1 - ph) * 0.5f), size.minDimension / 2 * (0.35f + 0.65f * ph), style = Stroke(3f))
                 }
             }
-            Box(Modifier.size(96.dp).clip(CircleShape).background(Color(0x1AFFFFFF)), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(96.dp).clip(CircleShape).background(Palette.veil(0x1A)), contentAlignment = Alignment.Center) {
                 Text(emoji, fontSize = 52.sp, modifier = Modifier.graphicsLayer { scaleX = bump.value; scaleY = bump.value })
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            repeat(3) { i -> Box(Modifier.size(12.dp).clip(CircleShape).background(if (i < knocks) Palette.accent else Color(0x33FFFFFF))) }
+            repeat(3) { i -> Box(Modifier.size(12.dp).clip(CircleShape).background(if (i < knocks) Palette.accent else Palette.veil(0x33))) }
             Text(if (knocks == 0) "knock 3×" else "$knocks / 3", color = Palette.muted, fontSize = 12.sp)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -481,7 +491,7 @@ private fun KnockZone(emoji: String, listening: Boolean, knocks: Int, vib: Boole
 @Composable
 private fun SensorChip(t: String, on: Boolean) = Text(
     t, color = if (on) Palette.accent else Palette.muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-    modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) Palette.accent.copy(alpha = 0.14f) else Color(0x10FFFFFF)).padding(horizontal = 10.dp, vertical = 4.dp),
+    modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) Palette.accent.copy(alpha = 0.14f) else Palette.veil(0x10)).padding(horizontal = 10.dp, vertical = 4.dp),
 )
 
 /** Verdict: probability ring around the fruit, label pill and confidence. */
@@ -564,18 +574,18 @@ private fun ClusterMap(good: List<DoubleArray>, bad: List<DoubleArray>, live: Li
     val pulse by t.animateFloat(0.6f, 1.4f, infiniteRepeatable(tween(800), RepeatMode.Reverse), label = "pulse")
     val x0 = all.minOf { it[0] } - 0.05; val x1 = all.maxOf { it[0] } + 0.05
     val y0 = all.minOf { it[2] } - 0.1; val y1 = all.maxOf { it[2] } + 0.1
-    Canvas(Modifier.fillMaxWidth().height(200.dp).clip(RoundedCornerShape(16.dp)).background(Color(0x66000000))) {
+    Canvas(Modifier.fillMaxWidth().height(200.dp).clip(RoundedCornerShape(16.dp)).background(Palette.well(0x66))) {
         fun pt(f: DoubleArray) = Offset(
             (20 + (f[0] - x0) / (x1 - x0).coerceAtLeast(1e-6) * (size.width - 40)).toFloat(),
             (size.height - 20 - (f[2] - y0) / (y1 - y0).coerceAtLeast(1e-6) * (size.height - 40)).toFloat(),
         )
-        for (k in 1..3) drawLine(Color.White.copy(alpha = 0.05f), Offset(0f, size.height * k / 4), Offset(size.width, size.height * k / 4))
+        for (k in 1..3) drawLine(Palette.ink.copy(alpha = 0.05f), Offset(0f, size.height * k / 4), Offset(size.width, size.height * k / 4))
         good.forEach { drawCircle(Palette.accent.copy(alpha = 0.8f), 9f, pt(it)) }
         bad.forEach { drawCircle(Palette.red.copy(alpha = 0.8f), 9f, pt(it)) }
         live.forEachIndexed { i, f ->
             val last = i == live.lastIndex
-            if (last) drawCircle(Color.White.copy(alpha = 0.25f), 18f * pulse, pt(f))
-            if (last) drawCircle(Color.White, 9f, pt(f)) else drawCircle(Color.White, 6f, pt(f), style = Stroke(3f))
+            if (last) drawCircle(Palette.ink.copy(alpha = 0.25f), 18f * pulse, pt(f))
+            if (last) drawCircle(Palette.ink, 9f, pt(f)) else drawCircle(Palette.ink, 6f, pt(f), style = Stroke(3f))
         }
     }
 }
@@ -629,15 +639,68 @@ private suspend fun listen(onTap: (Tap) -> Unit) {
 // ── Watermelon flow ─────────────────────────────────────────────────────────
 
 @Composable
-private fun MelonSteps(ripe: Boolean, dyeDone: Boolean) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        listOf(Triple("1", "Ripeness", ripe), Triple("2", "Dye check", dyeDone), Triple("3", "Report", ripe && dyeDone)).forEach { (n, t, done) ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (done) Palette.accent.copy(alpha = 0.14f) else Color(0x10FFFFFF)).padding(horizontal = 8.dp, vertical = 8.dp)) {
-                Text(if (done) "✓" else n, color = if (done) Palette.accent else Palette.text, fontSize = 13.sp, fontWeight = FontWeight.Black)
-                Text(t, color = if (done) Palette.text else Palette.muted, fontSize = 11.sp, maxLines = 1)
+private fun MelonSteps(w: Boolean, photo: Boolean, knocks: Boolean, done: Boolean) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+        listOf(Triple("1", "Weight", w), Triple("2", "Photo", photo), Triple("3", "Knocks", knocks), Triple("✓", "Result", done)).forEach { (n, t, ok) ->
+            val bg by animateColorAsState(if (ok) Palette.accent.copy(alpha = 0.18f) else Palette.veil(0x10), tween(400), label = "st$t")
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
+                modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(bg).padding(horizontal = 6.dp, vertical = 8.dp)) {
+                Text(if (ok) "✓" else n, color = if (ok) Palette.accent else Palette.text, fontSize = 12.sp, fontWeight = FontWeight.Black)
+                Text(t, color = if (ok) Palette.text else Palette.muted, fontSize = 11.sp, maxLines = 1)
             }
         }
+    }
+}
+
+/** Step 2 — photo of the field spot vs white paper: creamy-yellow = vine-ripened, white = picked early. */
+@Composable
+private fun FieldSpotCheck(app: AppState, onResult: (Double, Double, Double, Double) -> Unit) {
+    val cam = remember { com.shuddh.lab.camera.CameraHandle() }
+    val scope = rememberCoroutineScope()
+    val paper = android.graphics.RectF(0.10f, 0.40f, 0.34f, 0.60f)
+    val spotR = android.graphics.RectF(0.55f, 0.38f, 0.85f, 0.62f)
+    val live = remember { mutableListOf<Pair<Double, Double>>() }
+    val surf = remember { mutableListOf<Pair<Double, Double>>() }
+    var open by remember { mutableStateOf(true) }
+    var res by remember { mutableStateOf<Pair<Double, Double>?>(null) }
+    Glass(glow = res?.let { if (com.shuddh.lab.core.Melon.spotRipe(it.first) >= 0.5) Palette.accent else Palette.amber } ?: Palette.tint(Color(0xFFFDE047)), padding = 16) {
+        Text("② PHOTO OF THE FIELD SPOT", color = Color(0xFFF87171), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+        Text("Turn the melon to the pale patch where it lay on the ground. Put a white paper beside it — paper in the white box, the spot in the yellow box.", color = Palette.text, fontSize = 13.sp, lineHeight = 18.sp)
+        res?.let { (b, a) ->
+            val p = com.shuddh.lab.core.Melon.spotRipe(b)
+            Text(com.shuddh.lab.core.Melon.spotWords(b, a).replaceFirstChar { it.uppercase() }, color = if (p >= 0.5) Palette.accent else Palette.amber, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text("Yellowness b* ${fmt(b)} (white < 14 · creamy > 24) · ${(p * 100).toInt()}% ripe-like", color = Palette.muted, fontSize = 12.sp)
+        }
+        if (open) {
+            CameraView(cam, Modifier.fillMaxWidth(), widthFraction = 0.6f, overlay = { roi(paper, Color.White); roi(spotR, Palette.tint(Color(0xFFFDE047))) }) { bmp ->
+                val lab = com.shuddh.lab.camera.Frames.relativeLab(com.shuddh.lab.camera.Frames.meanRgb(bmp, spotR), com.shuddh.lab.camera.Frames.meanRgb(bmp, paper))
+                synchronized(live) { live += lab.b to lab.a; while (live.size > 30) live.removeAt(0) }
+                // Surface: texture (luma CV) and glare (share of near-white pixels) of the rind in the box.
+                val x0 = (spotR.left * bmp.width).toInt(); val y0 = (spotR.top * bmp.height).toInt()
+                val w = ((spotR.right - spotR.left) * bmp.width).toInt(); val h = ((spotR.bottom - spotR.top) * bmp.height).toInt()
+                val px = IntArray(w * h); bmp.getPixels(px, 0, w, x0, y0, w, h)
+                var sum = 0.0; var sq = 0.0; var hot = 0; var n = 0
+                for (i in px.indices step 3) { val c = px[i]; val l = 0.299 * ((c shr 16) and 0xff) + 0.587 * ((c shr 8) and 0xff) + 0.114 * (c and 0xff); sum += l; sq += l * l; if (l > 245) hot++; n++ }
+                val m = sum / n
+                synchronized(surf) { surf += (if (m < 1) 0.0 else kotlin.math.sqrt((sq / n - m * m).coerceAtLeast(0.0)) / m) to hot.toDouble() / n; while (surf.size > 30) surf.removeAt(0) }
+            }
+            Btn("📷  Take the photo", Modifier.fillMaxWidth()) {
+                scope.launch {
+                    cam.lock(false); kotlinx.coroutines.delay(700); cam.lock(true)
+                    synchronized(live) { live.clear() }; synchronized(surf) { surf.clear() }
+                    kotlinx.coroutines.delay(1300)
+                    val xs = synchronized(live) { live.toList() }
+                    cam.lock(false)
+                    if (xs.size < 5) return@launch
+                    val b = xs.map { it.first }.sorted()[xs.size / 2]; val a = xs.map { it.second }.sorted()[xs.size / 2]
+                    val sf = synchronized(surf) { surf.toList() }
+                    val tex = sf.map { it.first }.sorted().getOrElse(sf.size / 2) { 0.0 }; val glare = sf.map { it.second }.sorted().getOrElse(sf.size / 2) { 0.0 }
+                    res = b to a; open = false; onResult(b, a, tex, glare)
+                    com.shuddh.lab.core.Haptics.click(app.ctx)
+                    app.voice.speak(com.shuddh.lab.core.Melon.spotWords(b, a), app.lang)
+                }
+            }
+        } else Btn("Retake photo", Modifier.fillMaxWidth(), primary = false) { open = true }
     }
 }
 
@@ -647,7 +710,7 @@ private fun RipenessMeter(p: Double) {
     val x by animateFloatAsState(p.toFloat().coerceIn(0f, 1f), tween(900), label = "ripe")
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Canvas(Modifier.fillMaxWidth().height(18.dp)) {
-            drawRoundRect(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Color(0xFF86EFAC), Color(0xFFFDE047), Color(0xFFF87171))), cornerRadius = androidx.compose.ui.geometry.CornerRadius(9f))
+            drawRoundRect(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Palette.tint(Color(0xFF86EFAC)), Palette.tint(Color(0xFFFDE047)), Color(0xFFF87171))), cornerRadius = androidx.compose.ui.geometry.CornerRadius(9f))
             val cx = size.width * x
             drawCircle(Color.White, size.height * 0.75f, Offset(cx, size.height / 2))
             drawCircle(Color(0xFF0F172A), size.height * 0.45f, Offset(cx, size.height / 2))
@@ -701,30 +764,37 @@ private fun DyeCheck(app: AppState, onResult: (Double, Double) -> Unit) {
     }
 }
 
-/** One card that answers the user's questions: ripe? natural colour? organic? */
+/** One card: ripe or not (field spot + knock + stiffness), natural colour, and the honest organic line. */
 @Composable
-private fun MelonReport(pRipe: Double?, f: com.shuddh.lab.core.Fusion.Fused?, dye: Pair<Double, Double>?) {
+private fun MelonReport(pKnock: Double?, spot: Pair<Double, Double>?, kg: Double, peakHz: Double?, dye: Pair<Double, Double>?, surface: Pair<Double, Double>?) {
     Glass(padding = 16) {
-        Text("WATERMELON REPORT", color = Palette.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
-        @Composable fun row(e: String, k: String, v: String, c: Color, sub: String) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(e, fontSize = 20.sp)
-                Column(Modifier.weight(1f)) { Text(k, color = Palette.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold); Text(sub, color = Palette.muted, fontSize = 11.sp, lineHeight = 14.sp) }
-                Text(v, color = c, fontSize = 14.sp, fontWeight = FontWeight.Black)
+        Text("WATERMELON RESULT", color = Palette.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+        val pSpot = spot?.let { com.shuddh.lab.core.Melon.spotRipe(it.first) }
+        val rip = com.shuddh.lab.core.Melon.ripeness(pSpot, pKnock)
+        if (rip == null) Text("Do the weight, the field-spot photo and 3 knocks.", color = Palette.muted, fontSize = 13.sp)
+        else {
+            val (p, n) = rip
+            val lv = if (p >= 0.65) Level.SAFE else if (p >= 0.4) Level.CAUTION else Level.UNSAFE
+            val conf = com.shuddh.lab.core.Dart.confidence((p - 0.5) / 0.5, if (n >= 2) 0.35 else 0.55)
+            Text(if (p >= 0.65) "RIPE" else if (p >= 0.4) "NEARLY RIPE" else "NOT RIPE", color = Color(lv.argb), fontFamily = com.shuddh.lab.ui.Display, fontWeight = FontWeight.Black, fontSize = 28.sp)
+            RipenessMeter(p)
+            Text(com.shuddh.lab.core.Dart.estimate(lv, conf) + " · from " + listOfNotNull(pSpot?.let { "field spot" }, pKnock?.let { "knock" }).joinToString(" + "), color = Color(lv.argb), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            if (pKnock == null) Text("Teach the knock once (tiles below) with one ripe and one unripe melon to add sound + vibration to the decision.", color = Palette.muted, fontSize = 12.sp, lineHeight = 16.sp)
+        }
+        peakHz?.let { Text("Knock ${fmt(it)} Hz · ${one(kg)} kg · stiffness index ${String.format(java.util.Locale.US, "%.0f", com.shuddh.lab.core.Melon.stiffness(it, kg) / 1000)}k", color = Palette.muted, fontSize = 12.sp) }
+        dye?.let { (a, c) ->
+            val call = com.shuddh.lab.core.Melon.dyeCall(a)
+            Text("Colour: " + when (call) { com.shuddh.lab.core.Melon.Dye.NATURAL -> "natural"; com.shuddh.lab.core.Melon.Dye.DYE -> "dye suspected"; else -> "unsure" } + " (${c.toInt()}% sure)",
+                color = when (call) { com.shuddh.lab.core.Melon.Dye.NATURAL -> Palette.accent; com.shuddh.lab.core.Melon.Dye.DYE -> Palette.red; else -> Palette.amber }, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        }
+        val os = com.shuddh.lab.core.Melon.organicScore(kg, surface?.first, surface?.second)
+        val oc = com.shuddh.lab.core.Melon.organicCall(os)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("🌱", fontSize = 18.sp)
+            Column(Modifier.weight(1f)) {
+                Text("Organic: $oc", color = when { os >= 0.55 -> Palette.accent; os <= 0.45 -> Palette.amber; else -> Palette.muted }, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("Educated guess from size for weight, rind blemishes and shine · ${com.shuddh.lab.core.Melon.organicConfidence(os).toInt()}% sure. The Jaivik Bharat / India Organic logo is the proof.", color = Palette.muted, fontSize = 11.sp, lineHeight = 15.sp)
             }
         }
-        if (pRipe == null) row("🔊", "Ripeness", "knock first", Palette.muted, "microphone + accelerometer")
-        else {
-            val lv = if (pRipe >= 0.7) Level.SAFE else if (pRipe >= 0.35) Level.CAUTION else Level.UNSAFE
-            val conf = com.shuddh.lab.core.Dart.confidence((pRipe - 0.5) / 0.5, (f?.sigma ?: 0.2) * 2)
-            row("🔊", "Ripeness", if (pRipe >= 0.7) "RIPE" else if (pRipe >= 0.35) "MAYBE" else "UNRIPE", Color(lv.argb), "${(pRipe * 100).toInt()}% ripe-like · ${conf.toInt()}% sure")
-        }
-        if (dye == null) row("🧻", "Natural colour", "tissue test next", Palette.muted, "camera redness of the rubbed tissue")
-        else {
-            val call = com.shuddh.lab.core.Melon.dyeCall(dye.first)
-            val lv = when (call) { com.shuddh.lab.core.Melon.Dye.NATURAL -> Level.SAFE; com.shuddh.lab.core.Melon.Dye.DYE -> Level.UNSAFE; else -> Level.CAUTION }
-            row("🧻", "Natural colour", when (call) { com.shuddh.lab.core.Melon.Dye.NATURAL -> "NATURAL"; com.shuddh.lab.core.Melon.Dye.DYE -> "DYE"; else -> "UNSURE" }, Color(lv.argb), "a* ${fmt(dye.first)} · ${dye.second.toInt()}% sure")
-        }
-        row("🌱", "Organic", "can't test", Palette.muted, "Organic is how it was farmed — no phone or home test can measure it. Look for the Jaivik Bharat / India Organic logo.")
     }
 }

@@ -68,7 +68,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private val avatarColors = listOf(Color(0xFF8B5CF6), Color(0xFF22D3EE), Color(0xFF34D399), Color(0xFFFBBF24), Color(0xFFF43F5E), Color(0xFF60A5FA))
+private val avatarColors = listOf(Color(0xFF8B5CF6), Color(0xFF22D3EE), Color(0xFF34D399), Palette.tint(Color(0xFFFBBF24)), Color(0xFFF43F5E), Color(0xFF60A5FA))
 private fun avatarColor(name: String) = avatarColors[(name.hashCode() and 0x7fffffff) % avatarColors.size]
 private fun initials(name: String) = name.split(" ", "-", "_").filter { it.isNotBlank() }.take(2).joinToString("") { it.first().uppercase() }.ifBlank { "?" }
 
@@ -170,7 +170,7 @@ fun MeshScreen(app: AppState) {
             }
             Row(
                 Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp))
-                    .background(Brush.verticalGradient(listOf(Color(0x26FFFFFF), Color(0x14FFFFFF)))).border(1.dp, Palette.line, RoundedCornerShape(28.dp)).padding(6.dp),
+                    .background(Brush.verticalGradient(listOf(Palette.veil(0x26), Palette.veil(0x14)))).border(1.dp, Palette.line, RoundedCornerShape(28.dp)).padding(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 BasicTextField(
@@ -184,7 +184,7 @@ fun MeshScreen(app: AppState) {
                         .background(if (mesh.running && text.isNotBlank()) Brush.linearGradient(listOf(Palette.accent, Palette.cyan)) else Brush.linearGradient(listOf(Palette.line, Palette.line)))
                         .clickable(enabled = mesh.running && text.isNotBlank()) { mesh.send(MeshProto.CHAT, text.trim()); text = "" },
                     contentAlignment = Alignment.Center,
-                ) { Text("↑", color = Color(0xFF032016), fontSize = 20.sp, fontWeight = FontWeight.Black) }
+                ) { Text("↑", color = Palette.onAccent, fontSize = 20.sp, fontWeight = FontWeight.Black) }
             }
         }
     }
@@ -224,7 +224,7 @@ private fun QuickChip(label: String, c: Color, enabled: Boolean, onClick: () -> 
 @Composable
 private fun JoinHero(status: String, onJoin: () -> Unit) {
     Column(
-        Modifier.padding(16.dp).fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Color(0xFF13304A), Color(0xFF0F1A2A))))
+        Modifier.padding(16.dp).fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(if (UiPrefs.light) listOf(Color(0xFFE0F2FE), Color.White) else listOf(Color(0xFF13304A), Color(0xFF0F1A2A))))
             .border(1.dp, Palette.cyan.copy(alpha = 0.35f), RoundedCornerShape(24.dp)).padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {

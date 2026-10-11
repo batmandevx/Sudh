@@ -57,10 +57,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
@@ -100,25 +102,47 @@ object UiPrefs {
     var lang by mutableStateOf(com.shuddh.lab.core.Lang.EN)
     var accent by mutableStateOf(AccentTheme.EMERALD)
     var reduceMotion by mutableStateOf(false)
+    /** Light mode (default) — clean, bright, judge-friendly. */
+    var light by mutableStateOf(true)
 }
 
 /** Translates an on-screen label into the current UI language (English fallback). */
 fun tr(s: String): String = com.shuddh.lab.core.I18n.ui(s, UiPrefs.lang)
 
 object Palette {
-    val bg = Color(0xFF060A12)
-    val surface = Color(0xFF0E1522)
-    val surface2 = Color(0xFF162032)
-    val glass = Color(0x14FFFFFF)
-    val line = Color(0x22FFFFFF)
-    val text = Color(0xFFEFF4FA)
-    val muted = Color(0xFF8C9AB0)
-    val accent get() = UiPrefs.accent.primary
-    val blue = Color(0xFF60A5FA)
-    val cyan get() = UiPrefs.accent.secondary
-    val amber = Color(0xFFFBBF24)
-    val red = Color(0xFFF43F5E)
-    val violet = Color(0xFFA78BFA)
+    private val L get() = UiPrefs.light
+    val light get() = UiPrefs.light
+    val bg get() = if (L) Color(0xFFF4F7FB) else Color(0xFF060A12)
+    val surface get() = if (L) Color.White else Color(0xFF0E1522)
+    val surface2 get() = if (L) Color(0xFFEEF2F8) else Color(0xFF162032)
+    val glass get() = veil(0x14)
+    val line get() = veil(0x22)
+    val text get() = if (L) Color(0xFF0F172A) else Color(0xFFEFF4FA)
+    val muted get() = if (L) Color(0xFF5B6B82) else Color(0xFF8C9AB0)
+    /** Ink for thin lines / overlays: white on dark, navy on light. */
+    val ink get() = if (L) Color(0xFF0F172A) else Color.White
+    val accent get() = UiPrefs.accent.primary.let { if (L) darken(it) else it }
+    val blue get() = if (L) Color(0xFF2563EB) else Color(0xFF60A5FA)
+    val cyan get() = UiPrefs.accent.secondary.let { if (L) darken(it) else it }
+    val amber get() = if (L) Color(0xFFD97706) else Color(0xFFFBBF24)
+    val red get() = if (L) Color(0xFFE11D48) else Color(0xFFF43F5E)
+    val violet get() = if (L) Color(0xFF7C3AED) else Color(0xFFA78BFA)
+
+    /** Readable text colour on a solid fill of [c]. */
+    fun on(c: Color): Color = if (c.luminance() > 0.42f) Color(0xFF0B1220) else Color.White
+    /** Text on the accent (primary buttons, selected chips). */
+    val onAccent get() = on(accent)
+    /** Recessed "well" behind charts and stat rows: dark tint on dark, faint navy on light. */
+    fun well(alpha: Int): Color = if (L) veil((alpha * 0.3).toInt().coerceAtLeast(0x08)) else Color(alpha shl 24)
+    /** Solid card for dialogs and hero panels. */
+    val card get() = if (L) Color.White else Color(0xFF0B1220)
+    /** Pastel brand colours become legible mid-tones on a light background. */
+    fun tint(c: Color): Color = if (L && c.luminance() > 0.55f) Color(c.red * 0.55f, c.green * 0.55f, c.blue * 0.55f, c.alpha) else c
+
+    /** Translucent overlay: white-alpha on dark, navy-alpha on light (so outlines and fills stay visible). */
+    fun veil(alpha: Int): Color = if (L) Color(((alpha * 0.9).toInt().coerceIn(0, 255) shl 24) or 0x0F172A) else Color((alpha shl 24) or 0xFFFFFF)
+
+    private fun darken(c: Color) = Color(c.red * 0.72f, c.green * 0.72f, c.blue * 0.72f, c.alpha)
 }
 
 @Composable
@@ -134,8 +158,13 @@ fun ShuddhTheme(content: @Composable () -> Unit) {
     )
     MaterialTheme(
         typography = typo,
-        colorScheme = darkColorScheme(
-            primary = Palette.accent, onPrimary = Color(0xFF00281A), secondary = Palette.cyan,
+        colorScheme = if (UiPrefs.light) androidx.compose.material3.lightColorScheme(
+            primary = Palette.accent, onPrimary = Palette.onAccent, secondary = Palette.cyan, onSecondary = Palette.on(Palette.cyan),
+            background = Palette.bg, surface = Palette.surface, onSurface = Palette.text, onSurfaceVariant = Palette.muted,
+            onBackground = Palette.text, surfaceVariant = Palette.surface2, outline = Palette.line, surfaceContainerHigh = Color.White,
+            surfaceContainer = Color.White, surfaceContainerHighest = Palette.surface2,
+        ) else darkColorScheme(
+            primary = Palette.accent, onPrimary = Palette.onAccent, secondary = Palette.cyan,
             background = Palette.bg, surface = Palette.surface, onSurface = Palette.text,
             onBackground = Palette.text, surfaceVariant = Palette.surface2, outline = Palette.line,
         ),
@@ -226,11 +255,13 @@ fun ScreenFrame(
 /** Frosted glass card with a soft gradient hairline. */
 @Composable
 fun Glass(modifier: Modifier = Modifier, glow: Color? = null, padding: Int = 16, content: @Composable ColumnScope.() -> Unit) {
-    val g = glow ?: Color.White
-    val border = Brush.linearGradient(listOf(g.copy(alpha = 0.45f), Color.White.copy(alpha = 0.04f), g.copy(alpha = 0.18f)))
+    val g = glow ?: if (UiPrefs.light) Color(0xFFCBD5E1) else Color.White
+    val border = Brush.linearGradient(listOf(g.copy(alpha = if (UiPrefs.light) 0.55f else 0.45f), Palette.ink.copy(alpha = 0.04f), g.copy(alpha = 0.18f)))
     Column(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
-            .background(Brush.verticalGradient(listOf(Color(0x1AFFFFFF), Color(0x0AFFFFFF))))
+        modifier.fillMaxWidth()
+            .then(if (UiPrefs.light) Modifier.shadow(10.dp, RoundedCornerShape(22.dp), ambientColor = g.copy(alpha = 0.25f), spotColor = g.copy(alpha = 0.25f)) else Modifier)
+            .clip(RoundedCornerShape(22.dp))
+            .background(if (UiPrefs.light) Brush.verticalGradient(listOf(Color.White, Color(0xFFF8FAFD))) else Brush.verticalGradient(listOf(Palette.veil(0x1A), Palette.veil(0x0A))))
             .border(1.dp, border, RoundedCornerShape(22.dp)).padding(padding.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
         content = content,
@@ -267,7 +298,7 @@ fun Btn(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, pr
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            tr(text), color = if (primary) Color(0xFF032016) else Palette.text, fontWeight = FontWeight.SemiBold,
+            tr(text), color = if (primary) Palette.onAccent else Palette.text, fontWeight = FontWeight.SemiBold,
             fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
     }
@@ -296,7 +327,7 @@ fun <T> Chips(options: List<T>, selected: T, label: (T) -> String, onSelect: (T)
                 selected = o == selected, onClick = { onSelect(o) }, label = { Text(tr(label(o)), maxLines = 1) },
                 shape = RoundedCornerShape(50),
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Palette.accent, selectedLabelColor = Color(0xFF032016),
+                    selectedContainerColor = Palette.accent, selectedLabelColor = Palette.onAccent,
                     labelColor = Palette.text, containerColor = Palette.glass,
                 ),
                 border = FilterChipDefaults.filterChipBorder(true, o == selected, borderColor = Palette.line),
@@ -335,7 +366,7 @@ fun LineChart(
     rainbow: Boolean = false,
 ) {
     val all = series.filter { it.xs.isNotEmpty() }
-    Canvas(modifier.clip(RoundedCornerShape(16.dp)).background(Color(0x66000000)).border(1.dp, Palette.line, RoundedCornerShape(16.dp))) {
+    Canvas(modifier.clip(RoundedCornerShape(16.dp)).background(Palette.well(0x66)).border(1.dp, Palette.line, RoundedCornerShape(16.dp))) {
         if (all.isEmpty()) return@Canvas
         val x0 = xMin ?: all.minOf { it.xs.min() }
         val x1 = (xMax ?: all.maxOf { it.xs.max() }).let { if (it == x0) x0 + 1 else it }
@@ -349,7 +380,7 @@ fun LineChart(
 
         for (k in 0..4) {
             val y = padT + h * k / 4
-            drawLine(Color.White.copy(alpha = 0.06f), Offset(padL, y), Offset(padL + w, y), 1f)
+            drawLine(Palette.ink.copy(alpha = 0.06f), Offset(padL, y), Offset(padL + w, y), 1f)
         }
         markers.forEach { (x, c) ->
             if (x in x0..x1) drawLine(c, Offset(px(x), padT), Offset(px(x), padT + h), 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f)))
@@ -488,7 +519,7 @@ fun LevelRing(level: com.shuddh.lab.core.Level, size: androidx.compose.ui.unit.D
 @Composable
 fun StatTile(value: String, label: String, color: Color = Palette.text, modifier: Modifier = Modifier) {
     Column(
-        modifier.clip(RoundedCornerShape(16.dp)).background(Color(0x33000000)).border(1.dp, Palette.line, RoundedCornerShape(16.dp)).padding(12.dp),
+        modifier.clip(RoundedCornerShape(16.dp)).background(Palette.well(0x33)).border(1.dp, Palette.line, RoundedCornerShape(16.dp)).padding(12.dp),
     ) {
         val n = value.toIntOrNull()
         // Shrink long values so tiles never wrap mid-word.

@@ -268,7 +268,7 @@ private fun FingerOnPhone(modifier0: Modifier) {
         drawRoundRect(Brush.verticalGradient(listOf(Color(0xFF334155), Color(0xFF1E293B))), Offset(w * 0.22f, h * 0.05f), Size(w * 0.56f, h * 0.9f), CornerRadius(28f))
         val lens = Offset(w * 0.4f, h * 0.2f); val flash = Offset(w * 0.58f, h * 0.2f)
         drawCircle(Color(0xFF0F172A), 16f, lens); drawCircle(Color(0xFF475569), 9f, lens)
-        drawCircle(Color(0xFFFDE68A).copy(alpha = 0.4f + 0.6f * p), 8f, flash)
+        drawCircle(Palette.tint(Color(0xFFFDE68A)).copy(alpha = 0.4f + 0.6f * p), 8f, flash)
         // Finger slides in from below and covers lens + flash.
         val fy = h * (0.95f - 0.75f * p)
         drawRoundRect(Brush.verticalGradient(listOf(Color(0xFFF5B7A0), Color(0xFFE29578)), fy - 20f, fy + 120f), Offset(w * 0.33f, fy - 22f), Size(w * 0.34f, h * 0.6f), CornerRadius(40f))
@@ -287,7 +287,7 @@ private fun ScanRing(phase: HbPhase, progress: Float, finger: Boolean) {
     Canvas(Modifier.size(170.dp)) {
         val st = 12f
         val tl = Offset(st, st); val sz = Size(size.width - 2 * st, size.height - 2 * st)
-        drawArc(Color.White.copy(alpha = 0.07f), 0f, 360f, false, tl, sz, style = Stroke(st))
+        drawArc(Palette.ink.copy(alpha = 0.07f), 0f, 360f, false, tl, sz, style = Stroke(st))
         if (phase == HbPhase.MEASURE) drawArc(Brush.sweepGradient(listOf(Color(0xFF22C55E), blood, Color(0xFF22C55E))), -90f, 360f * p, false, tl, sz, style = Stroke(st, cap = StrokeCap.Round))
         else drawArc((if (finger) Palette.accent else Palette.amber).copy(alpha = 0.8f), spin, 70f, false, tl, sz, style = Stroke(st, cap = StrokeCap.Round))
         drawCircle(blood.copy(alpha = 0.18f * glow), size.minDimension / 2 - 20f)
@@ -305,10 +305,10 @@ private fun DualWave(r: List<Float>, g: List<Float>) {
             val p = Path(); v.forEachIndexed { i, x -> val y = size.height - 4f - (size.height - 8f) * (x - lo) / (hi - lo); if (i == 0) p.moveTo(0f, y) else p.lineTo(i * dx, y) }
             drawPath(p, c, style = Stroke(4f, cap = StrokeCap.Round))
         }
-        line(r, Color(0xFFF87171)); line(g, Color(0xFF4ADE80))
+        line(r, Color(0xFFF87171)); line(g, Palette.tint(Color(0xFF4ADE80)))
     }
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("━ red light", color = Color(0xFFF87171), fontSize = 11.sp); Text("━ green light", color = Color(0xFF4ADE80), fontSize = 11.sp)
+        Text("━ red light", color = Color(0xFFF87171), fontSize = 11.sp); Text("━ green light", color = Palette.tint(Color(0xFF4ADE80)), fontSize = 11.sp)
     }
 }
 
@@ -323,14 +323,14 @@ private fun ResultHero(r: HbIndex.Reading, b: HbIndex.Band, hb: Double?) {
             Canvas(Modifier.size(240.dp, 130.dp)) {
                 val st = 22f
                 val tl = Offset(st, st); val sz = Size(size.width - 2 * st, (size.height - st) * 2)
-                listOf(0f to 0.45f to Color(0xFFF43F5E), 0.45f to 0.58f to Color(0xFFFBBF24), 0.58f to 1f to Color(0xFF34D399)).forEach { (range, c) ->
+                listOf(0f to 0.45f to Color(0xFFF43F5E), 0.45f to 0.58f to Palette.tint(Color(0xFFFBBF24)), 0.58f to 1f to Color(0xFF34D399)).forEach { (range, c) ->
                     drawArc(c.copy(alpha = 0.85f), 180f + 180f * range.first, 180f * (range.second - range.first) - 2f, false, tl, sz, style = Stroke(st))
                 }
                 val ang = Math.toRadians(180.0 + 180.0 * a.value)
                 val cx = size.width / 2; val cy = size.height
                 val rr = sz.width / 2 - 4f
-                drawLine(Color.White, Offset(cx, cy), Offset(cx + (rr * kotlin.math.cos(ang)).toFloat(), cy + (rr * kotlin.math.sin(ang)).toFloat()), 7f, StrokeCap.Round)
-                drawCircle(Color.White, 12f, Offset(cx, cy))
+                drawLine(Palette.ink, Offset(cx, cy), Offset(cx + (rr * kotlin.math.cos(ang)).toFloat(), cy + (rr * kotlin.math.sin(ang)).toFloat()), 7f, StrokeCap.Round)
+                drawCircle(Palette.ink, 12f, Offset(cx, cy))
             }
             Text(hb?.let { "${fmt(it)} g/dL" } ?: "${(a.value * 100).toInt()}", color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 30.sp, modifier = Modifier.padding(bottom = 18.dp))
         }
@@ -363,6 +363,6 @@ private fun Trend(h: List<Pair<Long, Double>>) {
         drawLine(Color(0xFF34D399).copy(alpha = 0.3f), Offset(0f, y58), Offset(size.width, y58), 2f)
         val n = (ys.size * grow.value).toInt().coerceIn(1, ys.size)
         for (i in 1 until n) drawLine(blood.copy(alpha = 0.7f), pt(i - 1), pt(i), 4f, StrokeCap.Round)
-        for (i in 0 until n) drawCircle(if (ys[i] >= 58) Color(0xFF34D399) else Color(0xFFFBBF24), 7f, pt(i))
+        for (i in 0 until n) drawCircle(if (ys[i] >= 58) Color(0xFF34D399) else Palette.tint(Color(0xFFFBBF24)), 7f, pt(i))
     }
 }

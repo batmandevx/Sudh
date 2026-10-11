@@ -33,7 +33,11 @@ object BackLight {
     @Volatile var type: Int = 502
     @Volatile var preview: Boolean = false
     /** Colour byte format the ring hardware accepts: 0 = ARGB, 1 = RGB with alpha 0, 2 = R/B swapped. */
-    @Volatile var encoding: Int = 1
+    @Volatile var encoding: Int = 0
+    /** How to drive the ring: -1 = constant-colour segment; ≥0 = vivo prebaked effect id with our colour. */
+    @Volatile var effect: Int = -1
+    /** Segment duration. 0 would be a zero-length segment that plays nothing — ask for a long one, stop with [off]. */
+    const val HOLD_MS = 60_000
 
     fun encode(argb: Int, enc: Int): Int = when (enc) {
         1 -> argb and 0x00FFFFFF
@@ -44,12 +48,13 @@ object BackLight {
     val candidates = listOf(502 to false, 400 to false, 710 to false, 502 to true, 300 to false, TYPE_PHOTO_FLASH to false)
 
     fun loadMap(p: Prefs) {
-        p.json("ring_map")?.let { o -> runCatching { map = IntArray(3) { o.getJSONArray("m").getInt(it) }; multicolour = o.optBoolean("multi", true); type = o.optInt("type", 502); preview = o.optBoolean("preview", false); encoding = o.optInt("enc", 1)
-            // Old setups used the photo-flash type, which has no colour palette on iQOO — move to the mood light.
-            if (type == TYPE_PHOTO_FLASH) { type = 502; encoding = 1; preview = false; multicolour = null }
+        p.json("ring_map")?.let { o -> runCatching { map = IntArray(3) { o.getJSONArray("m").getInt(it) }; multicolour = o.optBoolean("multi", true); type = o.optInt("type", 502); preview = o.optBoolean("preview", false); encoding = o.optInt("enc", 0)
+            // Old setups: photo-flash type has no colour palette; alpha-0 colours (format 1) light nothing.
+            if (type == TYPE_PHOTO_FLASH || encoding == 1) { type = 502; encoding = 0; preview = false; multicolour = null }
+            effect = o.optInt("effect", -1)
         } }
     }
-    fun saveMap(p: Prefs) = p.putJson("ring_map", org.json.JSONObject().put("m", org.json.JSONArray(map.toList())).put("multi", multicolour ?: true).put("type", type).put("preview", preview).put("enc", encoding))
+    fun saveMap(p: Prefs) = p.putJson("ring_map", org.json.JSONObject().put("m", org.json.JSONArray(map.toList())).put("multi", multicolour ?: true).put("type", type).put("preview", preview).put("enc", encoding).put("effect", effect))
 
     /** Raw ARGB with each requested colour channel moved into the slot that really drives it. */
     fun mapped(argb: Int): Int {
@@ -82,21 +87,29 @@ object BackLight {
     fun set(ctx: Context, argb: Int, durationMs: Int = 0): Boolean = setRaw(ctx, mapped(argb), durationMs)
 
     /** Sends [argb] to the ring exactly as given (no channel mapping), with the checked light type unless overridden. */
-    fun setRaw(ctx: Context, argb0: Int, durationMs: Int = 0, type: Int = this.type, preview: Boolean = this.preview, strength: Int = 100, enc: Int = this.encoding): Boolean {
+    fun setRaw(ctx: Context, argb0: Int, durationMs0: Int = 0, type: Int = this.type, preview: Boolean = this.preview, strength: Int = 100, enc: Int = this.encoding, effect: Int = this.effect): Boolean {
         val argb = encode(argb0, enc)
+        val durationMs = if (durationMs0 <= 0) HOLD_MS else durationMs0
         val m = mgr ?: run { lastError = "VivoLightManager not found"; return false }
         return runCatching {
             off(ctx)
             val rec = Class.forName("vivo.app.vivolight.VivoLightRecord")
                 .getConstructor(Int::class.javaPrimitiveType, String::class.java, Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType, Int::class.javaPrimitiveType)
                 .newInstance(0, ctx.packageName, type, preview, false, durationMs)
-            val seg = Class.forName("vivo.app.vivolight.ConstantDurSegment")
+            val seg = if (effect < 0) Class.forName("vivo.app.vivolight.ConstantDurSegment")
                 .getConstructor(Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
                 .newInstance(argb, durationMs, strength)
+            else {
+                // Prebaked hardware effect (the path vivo's own settings use), coloured with our colour.
+                val colors = android.util.SparseArray<Int>().apply { put(0, argb) }
+                Class.forName("vivo.app.vivolight.PrebakeSegment")
+                    .getConstructor(Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, android.util.SparseArray::class.java)
+                    .newInstance(effect, false, durationMs, strength, colors)
+            }
             rec.javaClass.getMethod("addSegment", Class.forName("vivo.app.vivolight.SegmentBase")).invoke(rec, seg)
             val id = m.javaClass.getMethod("startLight", rec.javaClass).invoke(m, rec) as Int
             lastId = id
-            Log.w(TAG, "startLight type=$type preview=$preview argb=${Integer.toHexString(argb)} → id=$id")
+            Log.w(TAG, "startLight type=$type preview=$preview effect=$effect dur=$durationMs argb=${Integer.toHexString(argb)} → id=$id")
             lastError = if (id < 0) "startLight returned $id" else null
             id >= 0
         }.getOrElse { lastError = "${it.javaClass.simpleName}: ${it.cause?.message ?: it.message}"; Log.w(TAG, "set failed", it); false }
@@ -107,7 +120,7 @@ object BackLight {
         val m = mgr ?: return
         val id = lastId
         if (id >= 0) runCatching { m.javaClass.getMethod("stopLightById", Int::class.javaPrimitiveType).invoke(m, id) }
-        ctx?.let { c -> candidates.map { it.first }.distinct().forEach { t -> runCatching { m.javaClass.getMethod("stopLightByLightType", Int::class.javaPrimitiveType, String::class.java).invoke(m, t, c.packageName) } } }
+        ctx?.let { c -> (candidates.map { it.first }.distinct() + (1000..1010)).forEach { t -> runCatching { m.javaClass.getMethod("stopLightByLightType", Int::class.javaPrimitiveType, String::class.java).invoke(m, t, c.packageName) } } }
         lastId = -1
     }
 
@@ -128,5 +141,24 @@ object BackLight {
         }
         for (i in 0..3) sb.append("anim[$i]=${call("getAnimationInfo", i)}\n")
         return sb.toString()
+    }
+
+    /**
+     * Game-light route: colours are chosen by INDEX into the halo palette (0 white, 1 orange, 2 yellow, 3 red,
+     * 4 green, 5 teal, 6 blue, 7 purple, 8 pink) through vivo's game JSON config.
+     */
+    fun setGame(ctx: Context, colorIdx: Int, id: Int = 1001, type: Int = 1, subtype: Int = 0, times: Int = 0): Boolean {
+        val m = mgr ?: run { lastError = "VivoLightManager not found"; return false }
+        val json = org.json.JSONObject().put("game", org.json.JSONObject().put("id", id).put("subId", 0).put("type", type)
+            .put("defaultSubtype", subtype).put("defaultColorIdx", colorIdx).put("customSubtype", subtype).put("customColorIdx", colorIdx)).toString()
+        return runCatching {
+            off(ctx)
+            val r = if (times > 0) m.javaClass.getMethod("startLightForGameByTimes", String::class.java, String::class.java, Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType).invoke(m, ctx.packageName, json, times, false)
+                    else m.javaClass.getMethod("startLightForGame", String::class.java, String::class.java).invoke(m, ctx.packageName, json)
+            val id2 = (r as? Int) ?: -1
+            lastId = id2
+            Log.w(TAG, "startLightForGame $json → $id2")
+            id2 >= 0
+        }.getOrElse { lastError = "${it.javaClass.simpleName}: ${it.cause?.message ?: it.message}"; Log.w(TAG, "game failed", it); false }
     }
 }

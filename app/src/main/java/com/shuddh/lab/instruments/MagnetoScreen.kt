@@ -182,15 +182,15 @@ private fun FieldDial(delta: Float, heading: Float) {
     Canvas(Modifier.size(200.dp)) {
         val stroke = 22f
         val tl = Offset(stroke, stroke); val sz = Size(size.width - 2 * stroke, size.height - 2 * stroke)
-        drawArc(Color.White.copy(alpha = 0.07f), 135f, 270f, false, tl, sz, style = Stroke(stroke, cap = StrokeCap.Round))
+        drawArc(Palette.ink.copy(alpha = 0.07f), 135f, 270f, false, tl, sz, style = Stroke(stroke, cap = StrokeCap.Round))
         drawArc(
-            Brush.sweepGradient(listOf(Color(0xFF34D399), Color(0xFFFBBF24), Color(0xFFF43F5E), Color(0xFF34D399))),
+            Brush.sweepGradient(listOf(Color(0xFF34D399), Palette.tint(Color(0xFFFBBF24)), Color(0xFFF43F5E), Color(0xFF34D399))),
             135f, 270f * d, false, tl, sz, style = Stroke(stroke, cap = StrokeCap.Round),
         )
         rotate(h) {
             drawLine(Color(0xFFF43F5E), center, Offset(center.x, center.y - size.height * 0.28f), 8f, StrokeCap.Round)
             drawLine(Color.White.copy(alpha = 0.6f), center, Offset(center.x, center.y + size.height * 0.2f), 8f, StrokeCap.Round)
         }
-        drawCircle(Color.White, 10f, center)
+        drawCircle(Palette.ink, 10f, center)
     }
 }

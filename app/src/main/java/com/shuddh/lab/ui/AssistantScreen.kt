@@ -153,7 +153,7 @@ fun AssistantScreen(app: AppState) {
                         val raw = runCatching { llm.generate(ModelRole.TOOLS, Agent.routerPrompt(sub, hasImg, context)) }.getOrDefault("")
                         // Deterministic tools (maths, units, recipes…) win over a shaky small-model pick.
                         val rule = Agent.ruleRoute(sub, hasImg)
-                        if (rule.name in setOf("calculate", "convert_units", "recipe", "shopping_add", "shopping_show", "save_note", "show_notes", "call", "add_event", "open_vision", "open_instrument", "vendor_history", "set_timer", "set_alarm", "flashlight", "whistle_counter", "set_language", "phone_status", "open_app")) rule
+                        if (rule.name in setOf("calculate", "convert_units", "recipe", "shopping_add", "shopping_show", "save_note", "show_notes", "call", "add_event", "open_vision", "open_instrument", "pantry_brief", "vendor_history", "set_timer", "set_alarm", "flashlight", "whistle_counter", "set_language", "phone_status", "open_app")) rule
                         else Agent.parse(raw, sub, hasImg)
                     } else {
                         a.engine = "rule router"; Agent.ruleRoute(sub, hasImg)
@@ -392,7 +392,7 @@ fun AssistantScreen(app: AppState) {
             // Composer
             Row(
                 Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp))
-                    .background(Brush.verticalGradient(listOf(Color(0x26FFFFFF), Color(0x14FFFFFF)))).border(1.dp, Palette.line, RoundedCornerShape(28.dp))
+                    .background(Brush.verticalGradient(listOf(Palette.veil(0x26), Palette.veil(0x14)))).border(1.dp, Palette.line, RoundedCornerShape(28.dp))
                     .padding(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -410,7 +410,7 @@ fun AssistantScreen(app: AppState) {
                         .background(if (input.isNotBlank() && !running) Brush.linearGradient(listOf(Palette.accent, Palette.cyan)) else Brush.linearGradient(listOf(Palette.line, Palette.line)))
                         .clickable(enabled = input.isNotBlank() && !running) { ask(input) },
                     contentAlignment = Alignment.Center,
-                ) { Text(if (running) "…" else "↑", color = Color(0xFF032016), fontSize = 20.sp, fontWeight = FontWeight.Black) }
+                ) { Text(if (running) "…" else "↑", color = Palette.onAccent, fontSize = 20.sp, fontWeight = FontWeight.Black) }
             }
         }
     }
@@ -466,7 +466,7 @@ private fun Pipeline(phase: String) {
             }
             if (i < stages.lastIndex) {
                 Canvas(Modifier.weight(0.6f).height(4.dp)) {
-                    drawLine(Color.White.copy(alpha = 0.1f), Offset(0f, size.height / 2), Offset(size.width, size.height / 2), 4f)
+                    drawLine(Palette.ink.copy(alpha = 0.1f), Offset(0f, size.height / 2), Offset(size.width, size.height / 2), 4f)
                     if (i + 1 == idx) drawCircle(Palette.amber, 5f, Offset(size.width * flow, size.height / 2))
                     if (i + 1 < idx) drawLine(Palette.accent, Offset(0f, size.height / 2), Offset(size.width, size.height / 2), 4f)
                 }
@@ -482,7 +482,7 @@ private fun TurnBubble(app: AppState, t: ChatTurn, modifier: Modifier) {
             Modifier.widthIn(max = 320.dp).clip(RoundedCornerShape(22.dp))
                 .background(
                     if (t.user) Brush.horizontalGradient(listOf(Color(0xFF3B2A7A), Color(0xFF1F4E7A)))
-                    else Brush.verticalGradient(listOf(Color(0x24FFFFFF), Color(0x10FFFFFF))),
+                    else Brush.verticalGradient(listOf(Palette.veil(0x24), Palette.veil(0x10))),
                 ).padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -534,7 +534,7 @@ private fun TurnBubble(app: AppState, t: ChatTurn, modifier: Modifier) {
                     Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         t.actions.take(5).forEach { action ->
                             Text(
-                                action.label, color = Color(0xFF032016), fontWeight = FontWeight.Bold, fontSize = 11.sp,
+                                action.label, color = Palette.onAccent, fontWeight = FontWeight.Bold, fontSize = 11.sp,
                                 modifier = Modifier.clip(RoundedCornerShape(50)).background(Brush.horizontalGradient(listOf(Palette.accent, Palette.cyan)))
                                     .clickable { action.run?.invoke() ?: action.screen?.let { sc -> if (sc in tabs) app.tab(sc) else app.go(sc) } }
                                     .padding(horizontal = 11.dp, vertical = 7.dp),

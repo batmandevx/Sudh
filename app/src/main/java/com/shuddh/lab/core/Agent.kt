@@ -29,6 +29,8 @@ interface AgentHost {
     /** Small private key–value store for notes and the shopping list. */
     fun memoryGet(key: String): String = ""
     fun memoryPut(key: String, value: String) {}
+    /** Restock and best-time-to-buy summary from the pantry. */
+    fun pantryBrief(): String = "No pantry data."
 }
 
 /** Deterministic parsing of spoken durations and clock times — never left to the language model. */
@@ -136,6 +138,7 @@ object Agent {
         Tool("show_notes", "", "read my saved notes"),
         Tool("shopping_add", "items", "add items to the shopping or grocery list"),
         Tool("shopping_show", "", "show the shopping list"),
+        Tool("pantry_brief", "", "what is running out, restock, best time to buy groceries"),
         Tool("open_app", "name", "open another app on the phone, e.g. youtube, whatsapp, camera, settings"),
         Tool("call", "number", "call or dial a phone number"),
         Tool("open_vision", "", "machine vision: detect objects, hands, gestures, face, body pose with the camera"),
@@ -144,12 +147,46 @@ object Agent {
     )
 
     private val instruments = mapOf(
-        "spectrum" to "SPECTRUM", "milk" to "PURITY", "water" to "SPECTRUM", "chlorine" to "SPECTRUM",
+        "spectrum" to "SPECTRUM", "milk" to "PURITY", "water" to "DART", "chlorine" to "SPECTRUM",
         "polar" to "POLAR", "honey" to "PURITY", "purity" to "PURITY", "dart" to "DART", "bleach" to "DART", "chlorine" to "DART", "h2s" to "DART", "germs" to "DART", "starch" to "DART", "detergent" to "DART", "iodine" to "DART", "fssai" to "DART", "adulteration" to "PURITY", "nir" to "NIR", "nami" to "NAMI", "moisture" to "NAMI", "wall" to "NAMI",
         "echo" to "ECHO", "coconut" to "ECHO", "watermelon" to "ECHO", "strips" to "STRIP", "strip" to "STRIP",
         "hawa" to "SCATTER", "air" to "SCATTER", "float" to "FLOAT", "lactometer" to "FLOAT",
         "magneto" to "MAGNETO", "steel" to "MAGNETO", "whistle" to "WHISTLE", "cooker" to "WHISTLE",
         "lens" to "LENS", "boil" to "BOIL", "boiling" to "BOIL", "oil" to "OIL", "frying" to "OIL", "outbreak" to "OUTBREAK", "sick" to "OUTBREAK", "diarrhoea" to "OUTBREAK", "anaemia" to "ANAEMIA", "mosquito" to "MOSQUITO", "milkman" to "MILKMAN", "exposure" to "EXPOSURE", "ledger" to "EXPOSURE", "sos" to "GUARDIAN", "emergency" to "GUARDIAN", "fall" to "GUARDIAN", "guardian" to "GUARDIAN", "dengue" to "MOSQUITO", "malaria" to "MOSQUITO", "anemia" to "ANAEMIA", "pallor" to "ANAEMIA", "grain" to "GRAIN", "rice" to "GRAIN", "dal" to "GRAIN", "stones" to "GRAIN", "vision" to "VISION", "gesture" to "VISION", "gestures" to "VISION", "heart" to "PULSE", "pulse" to "PULSE", "bpm" to "PULSE", "label" to "LENS", "expiry" to "LENS",
+        "wax" to "WAX", "waxed" to "WAX", "polish" to "WAX", "polished" to "WAX", "shiny" to "WAX", "apple" to "WAX", "apples" to "WAX", "fruit" to "WAX",
+        "melon" to "ECHO", "ripe" to "ECHO", "tarbooz" to "ECHO", "nariyal" to "ECHO", "doodh" to "PURITY", "adulterated" to "PURITY", "milavat" to "PURITY",
+        "pantry" to "PANTRY", "restock" to "PANTRY", "groceries" to "PANTRY", "sensor lab" to "DART", "tools" to "TOOLS",
+    )
+
+    /**
+     * Plain-language test requests ("is my milk pure?", "is this apple waxed?") → the instrument that
+     * answers them. Ordered: the first matching subject wins, so "detergent in milk" opens Purity.
+     */
+    private val testSubjects = listOf(
+        "wax|waxed|polish|polished|coated|coating|shiny|shine|apple|apples|pear|fruit|fruits|seb" to "WAX",
+        "watermelon|melon|coconut|ripe|ripeness|tarbooz|tarbuj|nariyal" to "ECHO",
+        "milk|doodh|dudh|दूध|honey|shahad|shehad|juice|adulterated|adulteration|milavat|मिलावट|diluted|purity" to "PURITY",
+        "rice|dal|daal|grain|grains|wheat|stones|kankad|insects|keede" to "GRAIN",
+        "frying oil|cooking oil|oil|tel" to "OIL",
+        "drinking water|tap water|water|paani|pani|bleach|chlorine|h2s|germs|bacteria|iodine|iodised|iodized|salt|haldi|turmeric|starch|detergent|chilli|mirch" to "DART",
+        "steel|utensil|utensils|bartan" to "MAGNETO",
+        "moisture|damp|seepage" to "NAMI",
+        "expiry|label|fssai" to "LENS",
+    )
+    private val testVerbs = Regex("\\b(is (my|this|the|it|our)|are (my|these|the|they)|check|test|scan|measure|detect|open|start|safe|pure|real|fake|ripe|spoiled|spoilt|fresh|adulterated|waxed|polished|coated|mixed|kya|jaanch|jaanchna|जाँच|shuddh|asli|nakli|how much water)\\b")
+
+    /** Screen for a test request, or null when the message isn't asking for a test. */
+    fun testScreen(q0: String): String? {
+        val q = q0.lowercase()
+        if (!testVerbs.containsMatchIn(q)) return null
+        if (Regex("\\b(recipe|harmful|dangerous|side effects?|why|what is|meaning)\\b").containsMatchIn(q)) return null
+        return testSubjects.firstOrNull { (k, _) -> Regex("\\b($k)\\b").containsMatchIn(q) }?.second
+    }
+
+    private val friendly = mapOf(
+        "PURITY" to "Milk & liquid Purity test", "WAX" to "Fruit Shine Check (wax / polish)", "ECHO" to "Melon & coconut tap test",
+        "DART" to "Sensor Lab (water, oil, spices)", "GRAIN" to "Grain Scan", "OIL" to "Oil Check", "MAGNETO" to "Steel check",
+        "NAMI" to "Moisture sonar", "LENS" to "Label Lens", "PANTRY" to "Smart pantry", "PULSE" to "Pulse", "TOOLS" to "All tools",
     )
 
     fun routerPrompt(question: String, hasImage: Boolean, context: String = ""): String {
@@ -162,7 +199,7 @@ $list
 Examples:
 hi -> {"tool":"none","args":{}}
 has ramesh dairy failed before? -> {"tool":"vendor_history","args":{"vendor":"ramesh dairy"}}
-I want to check my honey -> {"tool":"open_instrument","args":{"name":"polar"}}
+I want to check my honey -> {"tool":"open_instrument","args":{"name":"purity"}}
 set a timer for 10 minutes -> {"tool":"set_timer","args":{"duration":"10 minutes","label":"timer"}}
 wake me up at 6:30 am -> {"tool":"set_alarm","args":{"time":"6:30 am","label":"wake up"}}
 recipe for masala chai -> {"tool":"recipe","args":{"dish":"masala chai"}}
@@ -243,6 +280,8 @@ explain photosynthesis -> {"tool":"general","args":{}}""" +
             w("recipe|recipes|how (do|to|can) (i |you )?(make|cook|prepare|bake)|banane ki vidhi|kaise banaye|kaise banate|बनाने की विधि|ingredients for") -> c("recipe", "dish" to dishOf(q0))
             Units.convert(q0) != null -> c("convert_units", "query" to q0)
             Calc.looksLikeMath(q0) -> c("calculate", "expression" to q0)
+            testScreen(q0) != null && !w("shopping|grocery|list|remind|alarm|timer|buy") -> c("open_instrument", "name" to testScreen(q0)!!.lowercase())
+            w("pantry|restock|run out|running out|running low|best time to buy|when to buy|what to buy|stock up") -> c("pantry_brief")
             w("calendar|meeting|appointment") || (w("event") && w("add|create|schedule")) -> c("add_event", "title" to q0, "time" to q0)
             w("shopping|grocery|groceries") && w("show|what|read|my list|list") && !w("add|put") -> c("shopping_show")
             w("shopping|grocery|groceries") || (w("add") && w("list")) -> c("shopping_add", "items" to itemsOf(q0))
@@ -297,7 +336,7 @@ explain photosynthesis -> {"tool":"general","args":{}}""" +
     val exactAnswer = setOf(
         "phone_status", "safety_brief", "calculate", "convert_units", "show_notes", "shopping_show", "shopping_add", "save_note",
         "set_timer", "set_alarm", "flashlight", "generate_qr", "message_family", "whistle_counter", "set_language",
-        "open_instrument", "open_vision", "open_app", "call", "add_event", "mesh_send", "download_report", "search_photos",
+        "open_instrument", "pantry_brief", "open_vision", "open_app", "call", "add_event", "mesh_send", "download_report", "search_photos",
     )
 
     /** Short questions that lean on the previous turn ("make it spicier", "what about tea?"). */
@@ -336,12 +375,14 @@ explain photosynthesis -> {"tool":"general","args":{}}""" +
                     ?: Assistant.facts.firstOrNull { (k, _) -> k.any { question.lowercase().contains(it) } })
                     ?.second?.en ?: "No fact sheet entry for \"$n\"."
             }
+            "pantry_brief" -> host.pantryBrief().also { host.openScreen("PANTRY") }
             "open_instrument" -> {
                 val n = call.args["name"].orEmpty().lowercase()
+                testScreen(question)?.let { t -> if (host.openScreen(t)) return "Opening ${friendly[t] ?: t.lowercase()} — follow the steps on screen." }
                 fun has(t: String, k: String) = Regex("\\b$k\\b").containsMatchIn(t)
                 val target = instruments.entries.firstOrNull { has(n, it.key) }?.value
                     ?: instruments.entries.firstOrNull { has(question.lowercase(), it.key) }?.value
-                if (target != null && host.openScreen(target)) "Opened the ${target.lowercase()} instrument." else "No instrument matches \"$n\"."
+                if (target != null && host.openScreen(target)) "Opening ${friendly[target] ?: target.lowercase()} — follow the steps on screen." else "No instrument matches \"$n\"."
             }
             "mesh_send" -> {
                 val text = call.args["text"].orEmpty().ifBlank { question }

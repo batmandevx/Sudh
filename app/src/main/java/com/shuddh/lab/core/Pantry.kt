@@ -42,23 +42,40 @@ data class PantryItem(
 class PantryStore(ctx: Context) {
     private val file = File(ctx.filesDir, "pantry.json")
     private val statsFile = File(ctx.filesDir, "pantry_stats.json")
+    private val historyFile = File(ctx.filesDir, "pantry_history.json")
     val items = mutableStateListOf<PantryItem>()
+    /** Purchase log: staple key → times bought (drives restock predictions). */
+    val history = androidx.compose.runtime.mutableStateMapOf<String, List<Long>>()
     var usedInTime = 0; private set
     var wasted = 0; private set
 
     init {
         runCatching { if (file.exists()) JSONArray(file.readText()).let { a -> for (i in 0 until a.length()) items.add(PantryItem.from(a.getJSONObject(i))) } }
+        runCatching { if (historyFile.exists()) JSONObject(historyFile.readText()).let { o -> o.keys().forEach { k -> val a = o.getJSONArray(k); history[k] = (0 until a.length()).map { a.getLong(it) } } } }
         runCatching { if (statsFile.exists()) JSONObject(statsFile.readText()).let { usedInTime = it.optInt("used"); wasted = it.optInt("wasted") } }
     }
 
     private fun save() {
         file.writeText(JSONArray().apply { items.forEach { put(it.toJson()) } }.toString())
         statsFile.writeText(JSONObject().put("used", usedInTime).put("wasted", wasted).toString())
+        historyFile.writeText(JSONObject().apply { history.forEach { (k, v) -> put(k, JSONArray(v)) } }.toString())
     }
+
+    /** Logs a purchase without tracking a pack (e.g. "bought milk" from the restock list). */
+    fun bought(name: String, time: Long = System.currentTimeMillis()) {
+        val k = PantrySmart.keyOf(name)
+        history[k] = ((history[k] ?: emptyList()) + time).takeLast(20)
+        save()
+    }
+
+    /** Keys of staples with an unexpired pack in the pantry. */
+    fun stocked(): Set<String> = items.filter { it.daysLeft >= 0 }.map { PantrySmart.keyOf(it.name) }.toSet()
+
+    fun restock(horizonDays: Double = 3.0) = PantrySmart.restock(history, stocked(), horizonDays = horizonDays)
 
     fun add(name: String, expiry: Long, fssai: String? = null, source: String = "manual"): PantryItem {
         val it = PantryItem(System.currentTimeMillis(), name.trim().ifBlank { "Food item" }, PantryItem.emojiFor(name), System.currentTimeMillis(), expiry, fssai, source)
-        items.add(it); save(); return it
+        items.add(it); bought(name); return it
     }
 
     /** Removes an item, counting it as eaten in time or wasted. */

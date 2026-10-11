@@ -174,7 +174,7 @@ fun MediaSearchScreen(app: AppState) {
                     }
                     // Search bar
                     Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Brush.verticalGradient(listOf(Color(0x26FFFFFF), Color(0x14FFFFFF))))
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Brush.verticalGradient(listOf(Palette.veil(0x26), Palette.veil(0x14))))
                             .border(1.dp, Palette.line, RoundedCornerShape(28.dp)).padding(start = 18.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {

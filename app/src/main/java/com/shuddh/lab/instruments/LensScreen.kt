@@ -209,7 +209,7 @@ private fun ExpiryRing(days: Long?) {
     Box(Modifier.size(110.dp), contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(110.dp)) {
             val st = 16f
-            drawArc(Color.White.copy(alpha = 0.08f), 0f, 360f, false, Offset(st, st), Size(size.width - 2 * st, size.height - 2 * st), style = Stroke(st))
+            drawArc(Palette.ink.copy(alpha = 0.08f), 0f, 360f, false, Offset(st, st), Size(size.width - 2 * st, size.height - 2 * st), style = Stroke(st))
             drawArc(col, -90f, 360f * a.value, false, Offset(st, st), Size(size.width - 2 * st, size.height - 2 * st), style = Stroke(st, cap = StrokeCap.Round))
         }
         Text(days?.let { if (it < 0) "✕" else "$it" } ?: "?", color = col, fontSize = 28.sp, fontWeight = FontWeight.Black)

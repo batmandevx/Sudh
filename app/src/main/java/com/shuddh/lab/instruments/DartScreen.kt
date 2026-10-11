@@ -88,7 +88,7 @@ import kotlin.math.sqrt
 
 private val dartTint = mapOf(
     "starch_milk" to Color(0xFF818CF8), "iodised_salt" to Color(0xFFA78BFA),
-    "tea_colour" to Color(0xFFFB923C), "water_milk" to Color(0xFF38BDF8), "detergent_milk" to Color(0xFF5EEAD4), "urea_milk" to Color(0xFFF472B6),
+    "tea_colour" to Color(0xFFFB923C), "water_milk" to Color(0xFF38BDF8), "detergent_milk" to Palette.tint(Color(0xFF5EEAD4)), "urea_milk" to Color(0xFFF472B6),
 )
 private fun tint(t: Dart.Test) = dartTint[t.id] ?: Palette.cyan
 
@@ -130,7 +130,7 @@ private fun DartHub(app: AppState, onTool: (String) -> Unit, @Suppress("UNUSED_P
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("Sensed" to "only phone sensors", "Estimated" to "safe / unsafe + % sure", "Sealed" to "evidence & report").forEach { (a, b) ->
-                    Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Color(0x14FFFFFF)).padding(10.dp)) {
+                    Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Palette.veil(0x14)).padding(10.dp)) {
                         Text(a, color = Palette.text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         Text(b, color = Palette.muted, fontSize = 10.sp, lineHeight = 13.sp)
                     }
@@ -178,7 +178,7 @@ private val sensorChecks = listOf(
 private fun SensorCard(c: SensorCheck, modifier: Modifier, onTap: () -> Unit) {
     val tint = when (c.group) { "water" -> Color(0xFF38BDF8); "home" -> Color(0xFF34D399); else -> Color(0xFF818CF8) }
     Column(
-        modifier.clip(RoundedCornerShape(20.dp)).background(Brush.verticalGradient(listOf(tint.copy(alpha = 0.20f), Color(0x0CFFFFFF))))
+        modifier.clip(RoundedCornerShape(20.dp)).background(Brush.verticalGradient(listOf(tint.copy(alpha = 0.20f), Palette.veil(0x0C))))
             .border(1.dp, tint.copy(alpha = 0.45f), RoundedCornerShape(20.dp)).clickable { onTap() }.padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -196,7 +196,7 @@ private fun SensorCard(c: SensorCheck, modifier: Modifier, onTap: () -> Unit) {
 private fun TestCard(t: Dart.Test, last: JSONObject?, modifier: Modifier, onTap: () -> Unit) {
     val c = tint(t)
     Column(
-        modifier.clip(RoundedCornerShape(20.dp)).background(Brush.verticalGradient(listOf(c.copy(alpha = 0.20f), Color(0x0CFFFFFF))))
+        modifier.clip(RoundedCornerShape(20.dp)).background(Brush.verticalGradient(listOf(c.copy(alpha = 0.20f), Palette.veil(0x0C))))
             .border(1.dp, c.copy(alpha = 0.45f), RoundedCornerShape(20.dp)).clickable { onTap() }.padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -309,7 +309,7 @@ private fun DartRunner(app: AppState, t: Dart.Test, next: Dart.Test?, onNext: ()
         // ── What you need ──
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
             t.needs.take(4).forEach { n ->
-                Text(n, color = Palette.text, fontSize = 11.sp, maxLines = 1, modifier = Modifier.weight(1f).clip(RoundedCornerShape(50)).background(Color(0x14FFFFFF)).padding(horizontal = 8.dp, vertical = 6.dp))
+                Text(n, color = Palette.text, fontSize = 11.sp, maxLines = 1, modifier = Modifier.weight(1f).clip(RoundedCornerShape(50)).background(Palette.veil(0x14)).padding(horizontal = 8.dp, vertical = 6.dp))
             }
         }
 
@@ -319,8 +319,8 @@ private fun DartRunner(app: AppState, t: Dart.Test, next: Dart.Test?, onNext: ()
                 val done = i < step; val now = i == step
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().clickable { step = i; speak(s) }) {
                     Box(
-                        Modifier.size(28.dp).clip(CircleShape).background(if (done) Palette.accent.copy(alpha = 0.2f) else if (now) c.copy(alpha = 0.25f) else Color(0x10FFFFFF))
-                            .border(1.5.dp, if (done) Palette.accent else if (now) c else Color(0x22FFFFFF), CircleShape),
+                        Modifier.size(28.dp).clip(CircleShape).background(if (done) Palette.accent.copy(alpha = 0.2f) else if (now) c.copy(alpha = 0.25f) else Palette.veil(0x10))
+                            .border(1.5.dp, if (done) Palette.accent else if (now) c else Palette.veil(0x22), CircleShape),
                         contentAlignment = Alignment.Center,
                     ) { Text(if (done) "✓" else "${i + 1}", color = if (done) Palette.accent else Palette.text, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                     Text(s, color = if (now) Palette.text else Palette.muted, fontSize = 14.sp, lineHeight = 19.sp, modifier = Modifier.weight(1f))
@@ -430,8 +430,8 @@ private fun DartRunner(app: AppState, t: Dart.Test, next: Dart.Test?, onNext: ()
                             val sel = m == milk
                             Text(m.label, color = if (sel) Palette.text else Palette.muted, fontSize = 12.sp, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal, maxLines = 1,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (sel) c.copy(alpha = 0.25f) else Color(0x10FFFFFF))
-                                    .border(1.dp, if (sel) c else Color(0x22FFFFFF), RoundedCornerShape(12.dp)).clickable { milk = m }.padding(vertical = 9.dp))
+                                modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (sel) c.copy(alpha = 0.25f) else Palette.veil(0x10))
+                                    .border(1.dp, if (sel) c else Palette.veil(0x22), RoundedCornerShape(12.dp)).clickable { milk = m }.padding(vertical = 9.dp))
                         }
                     }
                     Text("LACTOMETER CALIBRATED AT (printed on it)", color = Palette.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
@@ -440,8 +440,8 @@ private fun DartRunner(app: AppState, t: Dart.Test, next: Dart.Test?, onNext: ()
                             val sel = cc == calib
                             Text("${fmt(cc)} °C", color = if (sel) Palette.text else Palette.muted, fontSize = 12.sp, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (sel) c.copy(alpha = 0.25f) else Color(0x10FFFFFF))
-                                    .border(1.dp, if (sel) c else Color(0x22FFFFFF), RoundedCornerShape(12.dp)).clickable { calib = cc }.padding(vertical = 9.dp))
+                                modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (sel) c.copy(alpha = 0.25f) else Palette.veil(0x10))
+                                    .border(1.dp, if (sel) c else Palette.veil(0x22), RoundedCornerShape(12.dp)).clickable { calib = cc }.padding(vertical = 9.dp))
                         }
                     }
                     Stepper("Lactometer reading", one(reading), "at the milk surface", c) { d -> reading = (reading + d * 0.5).coerceIn(14.0, 40.0) }
@@ -582,7 +582,7 @@ private fun DartResult(t: Dart.Test, r: Outcome, conf: Double) {
     }
     EstimateBar(r.level, conf, col)
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Dart.sensors(t).forEach { Text(it, color = Palette.text, fontSize = 11.sp, maxLines = 1, modifier = Modifier.clip(RoundedCornerShape(50)).background(Color(0x14FFFFFF)).padding(horizontal = 8.dp, vertical = 5.dp)) }
+        Dart.sensors(t).forEach { Text(it, color = Palette.text, fontSize = 11.sp, maxLines = 1, modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.veil(0x14)).padding(horizontal = 8.dp, vertical = 5.dp)) }
     }
 }
 
@@ -595,7 +595,7 @@ private fun EstimateBar(level: Level, conf: Double, col: Color) {
             Text("ESTIMATE", color = Palette.muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp, modifier = Modifier.weight(1f))
             Text(Dart.estimate(level, conf), color = col, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
-        Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Color(0x22FFFFFF))) {
+        Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Palette.veil(0x22))) {
             Box(Modifier.fillMaxWidth(p.coerceAtLeast(0.03f)).height(8.dp).background(col))
         }
         Text("coin-toss ← how sure → certain", color = Palette.muted, fontSize = 10.sp)
@@ -609,7 +609,7 @@ private fun TimerRing(left: Int, total: Int, c: Color) {
         Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) {
             Canvas(Modifier.fillMaxSize()) {
                 val st = 7.dp.toPx()
-                drawArc(Color(0x22FFFFFF), 0f, 360f, false, Offset(st / 2, st / 2), Size(size.width - st, size.height - st), style = Stroke(st))
+                drawArc(Palette.veil(0x22), 0f, 360f, false, Offset(st / 2, st / 2), Size(size.width - st, size.height - st), style = Stroke(st))
                 drawArc(c, -90f, 360f * p, false, Offset(st / 2, st / 2), Size(size.width - st, size.height - st), style = Stroke(st, cap = StrokeCap.Round))
             }
             Text("$left", color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 20.sp)
@@ -646,11 +646,11 @@ private fun LabValidation(t: Dart.Test, store: JSONObject, save: (JSONObject) ->
 private fun ValidationChart(cal: Dart.Calibration?, pts: List<Pair<Double, Double>>) {
     val loo = cal?.loo ?: emptyList()
     val mx = (pts.maxOf { it.first } * 1.15).coerceAtLeast(1.0)
-    Canvas(Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(14.dp)).background(Color(0x33000000))) {
+    Canvas(Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(14.dp)).background(Palette.well(0x33))) {
         val pad = 20f
         fun X(v: Double) = (pad + v / mx * (size.width - 2 * pad)).toFloat()
         fun Y(v: Double) = (size.height - pad - v / mx * (size.height - 2 * pad)).toFloat()
-        for (k in 1..3) drawLine(Color.White.copy(alpha = 0.05f), Offset(0f, size.height * k / 4), Offset(size.width, size.height * k / 4))
+        for (k in 1..3) drawLine(Palette.ink.copy(alpha = 0.05f), Offset(0f, size.height * k / 4), Offset(size.width, size.height * k / 4))
         drawLine(Color.White.copy(alpha = 0.5f), Offset(X(0.0), Y(0.0)), Offset(X(mx), Y(mx)), 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 10f)))
         loo.forEach { (a, p) -> drawCircle(Color(0xFF818CF8), 9f, Offset(X(a), Y(p))); drawCircle(Color.White, 9f, Offset(X(a), Y(p)), style = Stroke(2f)) }
     }
@@ -687,7 +687,7 @@ private fun FoamChart(control: List<Pair<Double, Double>>, now: List<Pair<Double
         Canvas(Modifier.fillMaxWidth().height(150.dp)) {
             fun X(t: Double) = (t / 60.0 * size.width).toFloat()
             fun Y(v: Double) = (size.height - (v / 1.2).coerceIn(0.0, 1.0) * size.height).toFloat()
-            for (k in 1..3) drawLine(Color.White.copy(alpha = 0.05f), Offset(0f, size.height * k / 4), Offset(size.width, size.height * k / 4))
+            for (k in 1..3) drawLine(Palette.ink.copy(alpha = 0.05f), Offset(0f, size.height * k / 4), Offset(size.width, size.height * k / 4))
             a.zipWithNext().forEach { (p, q) -> drawLine(Color.White.copy(alpha = 0.6f), Offset(X(p.first), Y(p.second)), Offset(X(q.first), Y(q.second)), 3f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))) }
             b.zipWithNext().forEach { (p, q) -> drawLine(c, Offset(X(p.first), Y(p.second)), Offset(X(q.first), Y(q.second)), 5f, cap = StrokeCap.Round) }
         }
@@ -706,10 +706,10 @@ internal fun Stepper(title: String, value: String, hint: String, c: Color, chang
             Text(hint, color = Palette.muted, fontSize = 11.sp)
         }
         Text("−", color = Palette.text, fontSize = 22.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0x14FFFFFF)).clickable { change(-1) }.padding(top = 4.dp))
+            modifier = Modifier.size(40.dp).clip(CircleShape).background(Palette.veil(0x14)).clickable { change(-1) }.padding(top = 4.dp))
         Text(value, color = c, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 20.sp, maxLines = 1, softWrap = false, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.width(92.dp))
         Text("+", color = Palette.text, fontSize = 22.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0x14FFFFFF)).clickable { change(1) }.padding(top = 4.dp))
+            modifier = Modifier.size(40.dp).clip(CircleShape).background(Palette.veil(0x14)).clickable { change(1) }.padding(top = 4.dp))
     }
 }
 
@@ -725,8 +725,8 @@ private fun SnfGauge(snf: Double, min: Double, water: Double, c: Color) {
             Text(if (ok) "meets standard" else "≈ ${one(water)}% water", color = if (ok) Palette.accent else if (water < 10) Palette.amber else Palette.red, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
         Canvas(Modifier.fillMaxWidth().height(18.dp)) {
-            drawRoundRect(Color(0x22FFFFFF), cornerRadius = androidx.compose.ui.geometry.CornerRadius(9f))
-            drawRoundRect(if (ok) Color(0xFF34D399) else if (water < 10) Color(0xFFFBBF24) else Color(0xFFF43F5E), size = Size(size.width * p, size.height), cornerRadius = androidx.compose.ui.geometry.CornerRadius(9f))
+            drawRoundRect(Palette.veil(0x22), cornerRadius = androidx.compose.ui.geometry.CornerRadius(9f))
+            drawRoundRect(if (ok) Color(0xFF34D399) else if (water < 10) Palette.tint(Color(0xFFFBBF24)) else Color(0xFFF43F5E), size = Size(size.width * p, size.height), cornerRadius = androidx.compose.ui.geometry.CornerRadius(9f))
             drawLine(Color.White, Offset(size.width * m, -4f), Offset(size.width * m, size.height + 4f), 4f)
         }
         Text("White line: FSSAI minimum ${fmt(min)} %", color = Palette.muted, fontSize = 11.sp)
@@ -845,7 +845,7 @@ private fun VendorField(app: AppState) {
         modifier = Modifier.fillMaxWidth(),
         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
             focusedTextColor = Palette.text, unfocusedTextColor = Palette.text,
-            focusedBorderColor = Color(0xFF818CF8), unfocusedBorderColor = Color(0x33FFFFFF),
+            focusedBorderColor = Color(0xFF818CF8), unfocusedBorderColor = Palette.veil(0x33),
             focusedLabelColor = Color(0xFF818CF8), unfocusedLabelColor = Palette.muted,
         ),
     )
@@ -856,7 +856,7 @@ internal fun one(v: Double) = String.format(java.util.Locale.US, "%.1f", v)
 @Composable
 private fun ToolCard(emoji: String, title: String, sub: String, c: Color, modifier: Modifier, onTap: () -> Unit) {
     Column(
-        modifier.clip(RoundedCornerShape(20.dp)).background(Brush.verticalGradient(listOf(c.copy(alpha = 0.22f), Color(0x0CFFFFFF))))
+        modifier.clip(RoundedCornerShape(20.dp)).background(Brush.verticalGradient(listOf(c.copy(alpha = 0.22f), Palette.veil(0x0C))))
             .border(1.dp, c.copy(alpha = 0.5f), RoundedCornerShape(20.dp)).clickable { onTap() }.padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {

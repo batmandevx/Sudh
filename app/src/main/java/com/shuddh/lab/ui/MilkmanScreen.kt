@@ -88,8 +88,8 @@ fun MilkmanScreen(app: AppState) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(0.0, 0.5, 1.0, 1.5, 2.0).forEach { l ->
                     val on = (days[todayKey] ?: -1.0) == l
-                    Text(if (l == 0.0) "None" else "${com.shuddh.lab.core.fmt(l)} L", color = if (on) Color.Black else Palette.text, fontWeight = FontWeight.Bold, fontSize = 13.sp, textAlign = TextAlign.Center,
-                        modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (on) Palette.accent else Color.White.copy(alpha = 0.06f))
+                    Text(if (l == 0.0) "None" else "${com.shuddh.lab.core.fmt(l)} L", color = if (on) Palette.onAccent else Palette.text, fontWeight = FontWeight.Bold, fontSize = 13.sp, textAlign = TextAlign.Center,
+                        modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (on) Palette.accent else Palette.ink.copy(alpha = 0.06f))
                             .clickable { if (l == 0.0) days.remove(todayKey) else days[todayKey] = l; save(); Haptics.tick(ctx) }.padding(vertical = 12.dp))
                 }
             }
@@ -111,7 +111,7 @@ fun MilkmanScreen(app: AppState) {
                 days[k] = if ((days[k] ?: 0.0) > 0) 0.0.also { days.remove(k) } else 1.0; if (days[k] == 0.0) days.remove(k); save(); Haptics.tick(ctx)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Legend(Palette.accent, "pure"); Legend(Palette.amber, "watered"); Legend(Color.White.copy(alpha = 0.25f), "delivered, untested")
+                Legend(Palette.accent, "pure"); Legend(Palette.amber, "watered"); Legend(Palette.ink.copy(alpha = 0.25f), "delivered, untested")
             }
             DailyLitres(m.days)
         }
@@ -125,7 +125,7 @@ fun MilkmanScreen(app: AppState) {
 
 @Composable
 private fun Stat(icon: String, v: String, label: String, modifier: Modifier) {
-    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.05f)).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Palette.ink.copy(alpha = 0.05f)).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(icon, fontSize = 16.sp)
         Text(v, color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 15.sp, maxLines = 1)
         Text(label, color = Palette.muted, fontSize = 10.sp)
@@ -150,11 +150,11 @@ private fun MonthGrid(cal: Calendar, views: Map<Int, Milkman.DayView>, todayKey:
                 val day = w * 7 + d - lead + 1
                 if (day !in 1..n) Spacer(Modifier.weight(1f).aspectRatio(1f)) else {
                     val k = base + day; val v = views[k]
-                    val c = when { v == null -> Color.Transparent; (v.waterPct ?: 0.0) >= 3 -> Palette.amber; v.waterPct != null -> Palette.accent; else -> Color.White.copy(alpha = 0.18f) }
+                    val c = when { v == null -> Color.Transparent; (v.waterPct ?: 0.0) >= 3 -> Palette.amber; v.waterPct != null -> Palette.accent; else -> Palette.ink.copy(alpha = 0.18f) }
                     Box(Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(9.dp)).background(c.copy(alpha = if (c == Color.Transparent) 0f else 0.85f))
-                        .border(if (k == todayKey) 2.dp else 1.dp, if (k == todayKey) Palette.cyan else Color.White.copy(alpha = 0.08f), RoundedCornerShape(9.dp))
+                        .border(if (k == todayKey) 2.dp else 1.dp, if (k == todayKey) Palette.cyan else Palette.ink.copy(alpha = 0.08f), RoundedCornerShape(9.dp))
                         .clickable { if (k <= todayKey) onTap(k) }, contentAlignment = Alignment.Center) {
-                        Text("$day", color = if (v != null && c != Color.Transparent) Color.Black else Palette.text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("$day", color = if (v != null && c != Color.Transparent) Palette.on(c) else Palette.text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

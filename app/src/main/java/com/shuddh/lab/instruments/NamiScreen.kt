@@ -469,7 +469,7 @@ fun NamiScreen(app: AppState) {
         Btn("Get verdict", Modifier.fillMaxWidth(), enabled = reading != null) { app.show(verdict()) }
         if (popup) androidx.compose.ui.window.Dialog(onDismissRequest = { popup = false }) {
             Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Color(0xFF0B1220)).padding(14.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Palette.card).padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 val fm = failMsg
@@ -529,12 +529,12 @@ private fun ResultBanner(t: Double, ci: Double, calibrated: Boolean, level: Leve
                     Text("  ± ${ci.times(100).toInt()}", color = Palette.muted, fontSize = 14.sp, modifier = Modifier.padding(bottom = 12.dp))
                 }
             }
-            Text(label, color = Color.Black, fontWeight = FontWeight.Black, fontFamily = Display, fontSize = 18.sp,
+            Text(label, color = Palette.on(c), fontWeight = FontWeight.Black, fontFamily = Display, fontSize = 18.sp,
                 modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(c).padding(horizontal = 16.dp, vertical = 10.dp))
         }
         Canvas(Modifier.fillMaxWidth().height(22.dp)) {
             val y = size.height / 2
-            drawLine(Brush.horizontalGradient(listOf(Color(0xFFFBBF24), Color(0xFF34D399), Color(0xFF22D3EE), Color(0xFF3B82F6))), Offset(8f, y), Offset(size.width - 8f, y), 12f, StrokeCap.Round)
+            drawLine(Brush.horizontalGradient(listOf(Palette.tint(Color(0xFFFBBF24)), Color(0xFF34D399), Color(0xFF22D3EE), Color(0xFF3B82F6))), Offset(8f, y), Offset(size.width - 8f, y), 12f, StrokeCap.Round)
             val x = 8f + (size.width - 16f) * shown / 100f
             drawCircle(Color.White, 11f, Offset(x, y)); drawCircle(c, 6f, Offset(x, y))
         }
@@ -596,7 +596,7 @@ private fun SonarScene(busy: Boolean, progress: Int, t: Double?, surfaceId: Stri
                 }
             }
             // Progress dots for the three pings.
-            repeat(3) { k -> drawCircle(if (k < progress) cyan else Color.White.copy(alpha = 0.2f), 6f, Offset(px + pw + 30f, 30f + k * 22f)) }
+            repeat(3) { k -> drawCircle(if (k < progress) cyan else Palette.ink.copy(alpha = 0.2f), 6f, Offset(px + pw + 30f, 30f + k * 22f)) }
         }
     }
 }
@@ -604,7 +604,7 @@ private fun SonarScene(busy: Boolean, progress: Int, t: Double?, surfaceId: Stri
 private fun lerpC(a: Color, b: Color, f: Float) = Color(a.red + (b.red - a.red) * f, a.green + (b.green - a.green) * f, a.blue + (b.blue - a.blue) * f, 1f)
 
 private fun DrawScope.texture(id: String, top: Float, w: Float, h: Float) {
-    val ink = Color.White.copy(alpha = 0.12f)
+    val ink = Palette.ink.copy(alpha = 0.12f)
     when (id) {
         "wall" -> {
             var y = top + 18f; var row = 0
@@ -617,7 +617,7 @@ private fun DrawScope.texture(id: String, top: Float, w: Float, h: Float) {
         }
         "grain" -> {
             val rnd = java.util.Random(3)
-            repeat(70) { drawOval(Color.White.copy(alpha = 0.18f), Offset(rnd.nextFloat() * w, top + 4f + rnd.nextFloat() * (h - top - 12f)), Size(14f, 8f)) }
+            repeat(70) { drawOval(Palette.ink.copy(alpha = 0.18f), Offset(rnd.nextFloat() * w, top + 4f + rnd.nextFloat() * (h - top - 12f)), Size(14f, 8f)) }
         }
         "cloth" -> {
             var x = 0f; while (x < w) { drawLine(ink, Offset(x, top), Offset(x, h), 1.5f); x += 10f }
@@ -641,7 +641,7 @@ private fun LiquidGauge(t: Double?, ci: Double?, label: String?, color: Color, b
         Canvas(Modifier.fillMaxWidth().height(132.dp)) {
             val r = size.minDimension / 2 - 10f
             val c = center
-            drawCircle(Color.White.copy(alpha = 0.05f), r)
+            drawCircle(Palette.ink.copy(alpha = 0.05f), r)
             val clip = Path().apply { addOval(androidx.compose.ui.geometry.Rect(c, r)) }
             clipPath(clip) {
                 val y0 = c.y + r - 2 * r * level
@@ -727,7 +727,7 @@ private fun EchoTrace(env: FloatArray) {
 private fun RefPill(name: String, n: Int, c: Color, modifier: Modifier) {
     Row(modifier.clip(RoundedCornerShape(16.dp)).background(c.copy(alpha = 0.12f)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(name, color = c, fontWeight = FontWeight.Black, fontFamily = Display, modifier = Modifier.weight(1f))
-        repeat(3) { k -> Box(Modifier.padding(start = 4.dp).size(10.dp).clip(RoundedCornerShape(50)).background(if (k < n) c else Color.White.copy(alpha = 0.12f))) }
+        repeat(3) { k -> Box(Modifier.padding(start = 4.dp).size(10.dp).clip(RoundedCornerShape(50)).background(if (k < n) c else Palette.ink.copy(alpha = 0.12f))) }
         Spacer(Modifier.width(6.dp))
         Text(if (n == 0) "not set" else "×$n", color = Palette.text, fontSize = 12.sp)
     }
@@ -741,7 +741,7 @@ private fun SpotBars(spots: List<Spot>) {
         val c = levelColor(s.level)
         Row(Modifier.enter(i.coerceAtMost(6)), verticalAlignment = Alignment.CenterVertically) {
             Text(s.name, color = Palette.text, fontSize = 12.sp, modifier = Modifier.width(56.dp))
-            Box(Modifier.weight(1f).height(16.dp).clip(RoundedCornerShape(8.dp)).background(Color.White.copy(alpha = 0.06f))) {
+            Box(Modifier.weight(1f).height(16.dp).clip(RoundedCornerShape(8.dp)).background(Palette.ink.copy(alpha = 0.06f))) {
                 Box(Modifier.fillMaxWidth(f).height(16.dp).clip(RoundedCornerShape(8.dp)).background(Brush.horizontalGradient(listOf(c.copy(alpha = 0.5f), c))))
             }
             Text(" ${s.pct.toInt()}%" + if (s === wettest && spots.size > 1) " 💧" else "", color = c, fontSize = 12.sp, fontWeight = FontWeight.Bold,
@@ -768,7 +768,7 @@ fun Histogram(values: List<Double>, color: Color = Palette.cyan) {
                 androidx.compose.ui.geometry.CornerRadius(8f),
             )
         }
-        drawLine(Color.White.copy(alpha = 0.2f), Offset(0f, size.height - 16f), Offset(size.width, size.height - 16f), 2f)
+        drawLine(Palette.ink.copy(alpha = 0.2f), Offset(0f, size.height - 16f), Offset(size.width, size.height - 16f), 2f)
     }
     Row {
         Text("dry 0%", color = Palette.amber, fontSize = 10.sp, modifier = Modifier.weight(1f))

@@ -207,7 +207,7 @@ fun MapScreen(app: AppState) {
                     val n = if (c == cats[0]) places.size else places.count { c.match(it.kind) }
                     Text(
                         "${c.emoji} ${c.label}${if (places.isNotEmpty()) " $n" else ""}", fontSize = 13.sp, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal,
-                        color = if (sel) Color(0xFF032016) else Palette.text,
+                        color = if (sel) Palette.onAccent else Palette.text,
                         modifier = Modifier.shadow(4.dp, RoundedCornerShape(50)).clip(RoundedCornerShape(50))
                             .background(if (sel) Palette.accent else Palette.surface).clickable { cat = c; selected = null }.padding(horizontal = 14.dp, vertical = 9.dp),
                     )

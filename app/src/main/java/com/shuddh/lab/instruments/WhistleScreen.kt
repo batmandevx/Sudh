@@ -227,7 +227,7 @@ private fun Cooker(whistling: Boolean, progress: Float, running: Boolean, modifi
         drawRoundRect(Color(0xFF334155), Offset(cx - 9f, by - 50f - lift), Size(18f, 30f), CornerRadius(6f))
         drawCircle(Color(0xFF475569), 12f, Offset(cx, by - 54f - lift))
         // Heat glow
-        if (glow > 0f) drawCircle(Brush.radialGradient(listOf(Color(0xFFFBBF24).copy(alpha = 0.45f * glow), Color.Transparent), Offset(w / 2, by - 50f), 70f), 70f, Offset(w / 2, by - 50f))
+        if (glow > 0f) drawCircle(Brush.radialGradient(listOf(Palette.tint(Color(0xFFFBBF24)).copy(alpha = 0.45f * glow), Color.Transparent), Offset(w / 2, by - 50f), 70f), 70f, Offset(w / 2, by - 50f))
         // Steam puffs + sound arcs while whistling
         if (whistling) {
             for (k in 0 until 6) {
@@ -238,8 +238,8 @@ private fun Cooker(whistling: Boolean, progress: Float, running: Boolean, modifi
             for (k in 0 until 3) {
                 val p = (t + k / 3f) % 1f
                 val r = 24f + p * 70f
-                drawArc(Color(0xFFFBBF24).copy(alpha = 1 - p), -60f, 50f, false, Offset(cx - r, by - 60f - r), Size(2 * r, 2 * r), style = Stroke(4f, cap = StrokeCap.Round))
-                drawArc(Color(0xFFFBBF24).copy(alpha = 1 - p), 190f, 50f, false, Offset(cx - r, by - 60f - r), Size(2 * r, 2 * r), style = Stroke(4f, cap = StrokeCap.Round))
+                drawArc(Palette.tint(Color(0xFFFBBF24)).copy(alpha = 1 - p), -60f, 50f, false, Offset(cx - r, by - 60f - r), Size(2 * r, 2 * r), style = Stroke(4f, cap = StrokeCap.Round))
+                drawArc(Palette.tint(Color(0xFFFBBF24)).copy(alpha = 1 - p), 190f, 50f, false, Offset(cx - r, by - 60f - r), Size(2 * r, 2 * r), style = Stroke(4f, cap = StrokeCap.Round))
             }
         } else if (running && progress == 0f) {
             val p = t
@@ -252,7 +252,7 @@ private fun Cooker(whistling: Boolean, progress: Float, running: Boolean, modifi
 private fun BuildUpBar(p: Float, on: Boolean) {
     val a by animateFloatAsState(p, tween(120), label = "build")
     Column {
-        Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.06f))) {
+        Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Palette.ink.copy(alpha = 0.06f))) {
             Box(Modifier.fillMaxWidth(a).height(8.dp).clip(RoundedCornerShape(4.dp)).background(Brush.horizontalGradient(listOf(Palette.cyan, if (on) Palette.amber else Palette.cyan))))
         }
         Text(if (on) "🔔 WHISTLING" else if (p > 0f) "Whistle building… ${(p * 100).toInt()}%" else "Listening", color = if (on) Palette.amber else Palette.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -263,10 +263,10 @@ private fun BuildUpBar(p: Float, on: Boolean) {
 private fun Meter(label: String, f: Float, value: String, ok: Boolean, modifier: Modifier) {
     val c = if (ok) Palette.accent else Palette.muted
     val a by animateFloatAsState(f.coerceIn(0f, 1f), tween(150), label = label)
-    Column(modifier.clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.04f)).padding(8.dp)) {
+    Column(modifier.clip(RoundedCornerShape(12.dp)).background(Palette.ink.copy(alpha = 0.04f)).padding(8.dp)) {
         Text(label, color = Palette.muted, fontSize = 10.sp)
         Text(value, color = c, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-        Box(Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)).background(Color.White.copy(alpha = 0.06f))) {
+        Box(Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)).background(Palette.ink.copy(alpha = 0.06f))) {
             Box(Modifier.fillMaxWidth(a).height(5.dp).clip(RoundedCornerShape(3.dp)).background(c))
         }
     }
@@ -282,7 +282,7 @@ private fun TimelineCard(times: List<Long>, start: Long, now: Long, target: Int,
         val pred = WhistleTiming.predict(times)
         Canvas(Modifier.fillMaxWidth().height(54.dp)) {
             val y = size.height / 2
-            drawLine(Color.White.copy(alpha = 0.15f), Offset(0f, y), Offset(size.width, y), 4f, StrokeCap.Round)
+            drawLine(Palette.ink.copy(alpha = 0.15f), Offset(0f, y), Offset(size.width, y), 4f, StrokeCap.Round)
             val nx = size.width * (now - start) / span
             drawLine(Palette.cyan, Offset(0f, y), Offset(nx.coerceAtMost(size.width), y), 4f, StrokeCap.Round)
             times.forEach { tm ->
@@ -311,7 +311,7 @@ private fun TimelineCard(times: List<Long>, start: Long, now: Long, target: Int,
 
 @Composable
 private fun TStat(icon: String, v: String, label: String, modifier: Modifier) {
-    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.05f)).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Palette.ink.copy(alpha = 0.05f)).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(icon, fontSize = 16.sp)
         Text(v, color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 17.sp)
         Text(label, color = Palette.muted, fontSize = 10.sp)
@@ -326,12 +326,12 @@ private fun CountRing(count: Int, target: Int, active: Boolean) {
         Canvas(Modifier.size(160.dp)) {
             val st = 20f
             val tl = Offset(st, st); val sz = Size(size.width - 2 * st, size.height - 2 * st)
-            drawArc(Color.White.copy(alpha = 0.07f), 0f, 360f, false, tl, sz, style = Stroke(st))
+            drawArc(Palette.ink.copy(alpha = 0.07f), 0f, 360f, false, tl, sz, style = Stroke(st))
             drawArc(Brush.sweepGradient(SpectrumColors + SpectrumColors.first()), -90f, 360f * p, false, tl, sz, style = Stroke(st, cap = StrokeCap.Round))
             for (i in 0 until target) {
                 val a = Math.toRadians(-90.0 + 360.0 * i / target)
                 val r = size.width / 2 - st
-                drawCircle(if (i < count) Color.White else Color.White.copy(alpha = 0.2f), 5f, Offset(center.x + (r * kotlin.math.cos(a)).toFloat(), center.y + (r * kotlin.math.sin(a)).toFloat()))
+                drawCircle(if (i < count) Color.White else Palette.ink.copy(alpha = 0.2f), 5f, Offset(center.x + (r * kotlin.math.cos(a)).toFloat(), center.y + (r * kotlin.math.sin(a)).toFloat()))
             }
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {

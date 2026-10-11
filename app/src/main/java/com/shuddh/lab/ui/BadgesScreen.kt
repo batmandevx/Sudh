@@ -105,15 +105,15 @@ private fun Medal(b: Badge, modifier: Modifier, onClick: () -> Unit) {
             Canvas(Modifier.size(78.dp)) {
                 val st = 7f
                 if (b.unlocked) drawCircle(Brush.radialGradient(listOf(Palette.amber.copy(alpha = 0.45f), Color.Transparent)), size.minDimension / 2)
-                drawCircle(Color.White.copy(alpha = 0.08f), size.minDimension / 2 - st, style = Stroke(st))
+                drawCircle(Palette.ink.copy(alpha = 0.08f), size.minDimension / 2 - st, style = Stroke(st))
                 drawArc(
                     Brush.sweepGradient(listOf(Palette.amber, Palette.red, Palette.amber)), -90f, 360f * ring.value, false,
                     Offset(st, st), androidx.compose.ui.geometry.Size(size.width - 2 * st, size.height - 2 * st), style = Stroke(st, cap = StrokeCap.Round),
                 )
-                drawCircle(if (b.unlocked) Color(0xFF2A1F0E) else Color(0xFF141B28), size.minDimension / 2 - st * 2.4f)
+                drawCircle(if (UiPrefs.light) (if (b.unlocked) Color(0xFFFFF7E6) else Color(0xFFEEF2F8)) else if (b.unlocked) Color(0xFF2A1F0E) else Color(0xFF141B28), size.minDimension / 2 - st * 2.4f)
                 if (b.unlocked && !UiPrefs.reduceMotion) {
                     val x = size.width * shine
-                    drawLine(Color.White.copy(alpha = 0.25f), Offset(x - 20f, 0f), Offset(x + 20f, size.height), 10f)
+                    drawLine(Palette.ink.copy(alpha = 0.25f), Offset(x - 20f, 0f), Offset(x + 20f, size.height), 10f)
                 }
             }
             Text(b.emoji, fontSize = 28.sp, modifier = Modifier.alpha(if (b.unlocked) 1f else 0.35f))

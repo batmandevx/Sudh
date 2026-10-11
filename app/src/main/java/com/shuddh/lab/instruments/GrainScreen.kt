@@ -66,7 +66,7 @@ import kotlinx.coroutines.withContext
 private val grainName = Txt("Grain purity", "अनाज की शुद्धता", "ಧಾನ್ಯ ಶುದ್ಧತೆ", "ధాన్యం స్వచ్ఛత", "தானியத் தூய்மை")
 private val kindColor = mapOf(
     GrainScan.Kind.FOREIGN to Color(0xFFF43F5E), GrainScan.Kind.DISCOLOURED to Color(0xFFF97316),
-    GrainScan.Kind.BROKEN to Color(0xFFFBBF24), GrainScan.Kind.CLUMP to Color(0xFF60A5FA), GrainScan.Kind.GRAIN to Color(0xFF34D399),
+    GrainScan.Kind.BROKEN to Palette.tint(Color(0xFFFBBF24)), GrainScan.Kind.CLUMP to Color(0xFF60A5FA), GrainScan.Kind.GRAIN to Color(0xFF34D399),
 )
 
 /** Grain Scan — counts grains on paper/cloth and circles stones, husk, insects and broken grains. */

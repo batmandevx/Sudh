@@ -67,7 +67,7 @@ fun plural(n: Int, word: String) = "$n $word${if (n == 1) "" else "s"}"
 
 /** GitHub-style colour for a day: green intensity by count, shifted to amber/red by failures. */
 fun dayColor(t: Insights.Tally?): Color {
-    if (t == null || t.total == 0) return Color.White.copy(alpha = 0.06f)
+    if (t == null || t.total == 0) return Palette.ink.copy(alpha = 0.06f)
     val base = when {
         t.unsafe > 0 && t.unsafe * 2 >= t.total -> Palette.red
         t.unsafe > 0 || t.caution > 0 -> Palette.amber
@@ -116,7 +116,7 @@ fun ContributionHeatmap(rs: List<ScanRecord>, weeks: Int = 26, onDay: (Long) -> 
                     if (day > today) continue
                     val c = dayColor(byDay[day])
                     drawRoundRect(c.copy(alpha = c.alpha * a), Offset(w * cell + gap / 2, top + d * cell + gap / 2), Size(cell - gap, cell - gap), CornerRadius(cell * 0.22f))
-                    if (day == today) drawRoundRect(Color.White, Offset(w * cell + gap / 2, top + d * cell + gap / 2), Size(cell - gap, cell - gap), CornerRadius(cell * 0.22f), style = Stroke(2f))
+                    if (day == today) drawRoundRect(Palette.ink, Offset(w * cell + gap / 2, top + d * cell + gap / 2), Size(cell - gap, cell - gap), CornerRadius(cell * 0.22f), style = Stroke(2f))
                 }
             }
         }
@@ -179,11 +179,11 @@ fun MonthCalendar(rs: List<ScanRecord>, month: Long, selected: Long?, onMonth: (
                                     Box(
                                         Modifier.fillMaxWidth().aspectRatio(1f).clip(CircleShape)
                                             .background(if (sel) Brush.linearGradient(listOf(Palette.accent, Palette.cyan)) else Brush.linearGradient(listOf(c, c)))
-                                            .then(if (day == today) Modifier.border(2.dp, Color.White, CircleShape) else Modifier)
+                                            .then(if (day == today) Modifier.border(2.dp, Palette.ink, CircleShape) else Modifier)
                                             .clickable { onSelect(day) },
                                         contentAlignment = Alignment.Center,
                                     ) {
-                                        Text("${idx + 1}", color = if (sel) Color(0xFF032016) else if (day > today) Palette.muted.copy(alpha = 0.4f) else Palette.text,
+                                        Text("${idx + 1}", color = if (sel) Palette.onAccent else if (day > today) Palette.muted.copy(alpha = 0.4f) else Palette.text,
                                             fontSize = 12.sp, fontWeight = if (t != null) FontWeight.Bold else FontWeight.Normal)
                                     }
                                 }
@@ -232,15 +232,15 @@ fun HourClock(hours: IntArray, modifier: Modifier = Modifier.size(230.dp)) {
     Canvas(modifier) {
         val r0 = size.minDimension * 0.18f
         val r1 = size.minDimension * 0.46f
-        drawCircle(Color.White.copy(alpha = 0.05f), r1)
-        drawCircle(Color.White.copy(alpha = 0.08f), r0, style = Stroke(2f))
+        drawCircle(Palette.ink.copy(alpha = 0.05f), r1)
+        drawCircle(Palette.ink.copy(alpha = 0.08f), r0, style = Stroke(2f))
         for (h in 0 until 24) {
             val a = Math.toRadians(-90.0 + h * 15.0)
             val len = (r1 - r0) * hours[h] / maxN * grow.value
             val col = when (h) { in 5..10 -> Palette.amber; in 11..16 -> Palette.accent; in 17..21 -> Palette.violet; else -> Palette.blue }
             val p0 = Offset(center.x + (r0 * cos(a)).toFloat(), center.y + (r0 * sin(a)).toFloat())
             val p1 = Offset(center.x + ((r0 + len.coerceAtLeast(3f)) * cos(a)).toFloat(), center.y + ((r0 + len.coerceAtLeast(3f)) * sin(a)).toFloat())
-            drawLine(if (hours[h] == 0) Color.White.copy(alpha = 0.1f) else col, p0, p1, size.minDimension * 0.035f, androidx.compose.ui.graphics.StrokeCap.Round)
+            drawLine(if (hours[h] == 0) Palette.ink.copy(alpha = 0.1f) else col, p0, p1, size.minDimension * 0.035f, androidx.compose.ui.graphics.StrokeCap.Round)
         }
         val paint = android.graphics.Paint().apply { color = Palette.muted.toArgb(); textSize = size.minDimension * 0.06f; isAntiAlias = true; textAlign = android.graphics.Paint.Align.CENTER }
         listOf(0 to "12a", 6 to "6a", 12 to "12p", 18 to "6p").forEach { (h, s) ->
@@ -260,7 +260,7 @@ fun InstrumentMix(mix: List<Pair<String, Int>>) {
     val maxN = (mix.maxOfOrNull { it.second } ?: 1).coerceAtLeast(1)
     val colors = mapOf(
         "Spectrum" to Palette.violet, "Polar" to Palette.amber, "NIR" to Palette.red, "Nami" to Palette.cyan, "Echo" to Palette.blue,
-        "Strips" to Palette.accent, "Hawa" to Color(0xFF9AD0C2), "Float" to Color(0xFFE8F1EC), "Magneto" to Palette.violet, "Lens" to Palette.amber,
+        "Strips" to Palette.accent, "Hawa" to Palette.tint(Color(0xFF9AD0C2)), "Float" to Palette.tint(Color(0xFFE8F1EC)), "Magneto" to Palette.violet, "Lens" to Palette.amber,
     )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         mix.forEachIndexed { i, (name, n) ->
@@ -268,7 +268,7 @@ fun InstrumentMix(mix: List<Pair<String, Int>>) {
             LaunchedEffect(mix) { a.animateTo(n.toFloat() / maxN, tween(700, delayMillis = 70 * i, easing = FastOutSlowInEasing)) }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(name, color = Palette.text, fontSize = 12.sp, modifier = Modifier.width(78.dp), maxLines = 1)
-                Box(Modifier.weight(1f).height(14.dp).clip(RoundedCornerShape(7.dp)).background(Color.White.copy(alpha = 0.05f))) {
+                Box(Modifier.weight(1f).height(14.dp).clip(RoundedCornerShape(7.dp)).background(Palette.ink.copy(alpha = 0.05f))) {
                     val c = colors[name] ?: Palette.cyan
                     Box(Modifier.fillMaxWidth(a.value.coerceAtLeast(0.01f)).height(14.dp).clip(RoundedCornerShape(7.dp)).background(Brush.horizontalGradient(listOf(c.copy(alpha = 0.6f), c))))
                 }

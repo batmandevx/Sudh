@@ -209,15 +209,15 @@ private fun GTrace(v: List<Float>) {
     Canvas(Modifier.fillMaxWidth().height(100.dp)) {
         fun y(g: Float) = size.height - (g / 3f).coerceIn(0f, 1f) * size.height
         drawLine(Color(0xFFF43F5E).copy(alpha = 0.5f), Offset(0f, y(2.4f)), Offset(size.width, y(2.4f)), 2f)
-        drawLine(Color(0xFFFBBF24).copy(alpha = 0.5f), Offset(0f, y(0.45f)), Offset(size.width, y(0.45f)), 2f)
-        drawLine(Color.White.copy(alpha = 0.15f), Offset(0f, y(1f)), Offset(size.width, y(1f)), 1f)
+        drawLine(Palette.tint(Color(0xFFFBBF24)).copy(alpha = 0.5f), Offset(0f, y(0.45f)), Offset(size.width, y(0.45f)), 2f)
+        drawLine(Palette.ink.copy(alpha = 0.15f), Offset(0f, y(1f)), Offset(size.width, y(1f)), 1f)
         if (v.size > 1) {
             val dx = size.width / (v.size - 1)
             val p = Path(); v.forEachIndexed { i, g -> if (i == 0) p.moveTo(0f, y(g)) else p.lineTo(i * dx, y(g)) }
             drawPath(p, cyan, style = Stroke(3f, cap = StrokeCap.Round))
         }
     }
-    Row { Text("— impact 2.4 g", color = Color(0xFFF43F5E), fontSize = 10.sp, modifier = Modifier.weight(1f)); Text("— free fall 0.45 g", color = Color(0xFFFBBF24), fontSize = 10.sp) }
+    Row { Text("— impact 2.4 g", color = Color(0xFFF43F5E), fontSize = 10.sp, modifier = Modifier.weight(1f)); Text("— free fall 0.45 g", color = Palette.tint(Color(0xFFFBBF24)), fontSize = 10.sp) }
 }
 
 /** Full-screen "Are you OK?" countdown shown over any screen when a fall is detected. */
@@ -254,7 +254,7 @@ fun GuardianAlert(app: AppState) {
             Text(if (sent == null) (if (GuardianState.alertKind == "test") "Test fall" else "Did you fall?") else "SOS SENT", color = Color.White, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 38.sp)
             Box(contentAlignment = Alignment.Center) {
                 Canvas(Modifier.size(200.dp)) {
-                    drawArc(Color.White.copy(alpha = 0.25f), 0f, 360f, false, Offset(14f, 14f), Size(size.width - 28f, size.height - 28f), style = Stroke(16f))
+                    drawArc(Palette.ink.copy(alpha = 0.25f), 0f, 360f, false, Offset(14f, 14f), Size(size.width - 28f, size.height - 28f), style = Stroke(16f))
                     drawArc(Color.White, -90f, 360f * ring.value, false, Offset(14f, 14f), Size(size.width - 28f, size.height - 28f), style = Stroke(16f, cap = StrokeCap.Round))
                 }
                 Text(if (sent == null) "$left" else "🆘", color = Color.White, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 64.sp)

@@ -17,4 +17,16 @@ class MelonTest {
         assertEquals(Melon.Dye.BORDERLINE, Melon.dyeCall(25.0))
         assertTrue(Melon.dyeConfidence(48.0) > 95)
     }
+
+    @Test fun fieldSpot() {
+        assertTrue(Melon.spotRipe(30.0) > 0.9); assertTrue(Melon.spotRipe(6.0) < 0.1)
+        assertTrue(Melon.spotWords(28.0, 2.0).startsWith("creamy"))
+        assertEquals(0.7, Melon.ripeness(0.8, 0.6)!!.first, 1e-9)
+    }
+
+    @Test fun organicSignsAreCappedGuess() {
+        val small = Melon.organicScore(3.0, 0.2, 0.0); val big = Melon.organicScore(9.0, 0.05, 0.08)
+        assertEquals("Organic-like signs", Melon.organicCall(small)); assertEquals("Conventional-like signs", Melon.organicCall(big))
+        assertTrue(Melon.organicConfidence(small) <= 60.0)
+    }
 }

@@ -113,7 +113,7 @@ fun OilScreen(app: AppState) {
                 }
             } ?: Note(status, Palette.text)
         }
-        CameraView(cam, Modifier.fillMaxWidth(), overlay = { roi(white, Color.White); roi(oil, Color(0xFFFBBF24)) }) { bmp ->
+        CameraView(cam, Modifier.fillMaxWidth(), overlay = { roi(white, Color.White); roi(oil, Palette.tint(Color(0xFFFBBF24))) }) { bmp ->
             val w = Frames.meanRgb(bmp, white); val s = Frames.meanRgb(bmp, oil)
             live = Frames.relativeLab(s, w)
             if (motion.steady) collector.offer(w to s)

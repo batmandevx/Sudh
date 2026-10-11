@@ -51,7 +51,7 @@ import com.shuddh.lab.core.Exposure
 import kotlin.math.sin
 
 private val conColor = mapOf("no3" to Color(0xFFA78BFA), "f" to Color(0xFF22D3EE), "as" to Color(0xFFF43F5E))
-private fun pctColor(p: Double) = when { p < 50 -> Color(0xFF34D399); p < 100 -> Color(0xFFFBBF24); else -> Color(0xFFF43F5E) }
+private fun pctColor(p: Double) = when { p < 50 -> Color(0xFF34D399); p < 100 -> Palette.tint(Color(0xFFFBBF24)); else -> Color(0xFFF43F5E) }
 
 /** Family Exposure Ledger — how much of a safe daily limit each person actually drinks, month by month. */
 @Composable
@@ -70,7 +70,7 @@ fun ExposureScreen(app: AppState) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             family.forEachIndexed { i, f ->
                 val on = i == who
-                Column(Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).background(if (on) Palette.accent.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f))
+                Column(Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).background(if (on) Palette.accent.copy(alpha = 0.2f) else Palette.ink.copy(alpha = 0.05f))
                     .clickable { who = i }.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(f.emoji, fontSize = 28.sp)
                     Text(f.name, color = if (on) Palette.text else Palette.muted, fontWeight = FontWeight.Bold, fontSize = 13.sp)
@@ -175,7 +175,7 @@ private fun BodyFill(child: Boolean, frac: Double, col: Color, modifier: Modifie
             addRoundRect(androidx.compose.ui.geometry.RoundRect(cx - w * 0.42f * s, top + h * s * 0.25f, cx - w * 0.3f * s, top + h * s * 0.58f, CornerRadius(12f)))
             addRoundRect(androidx.compose.ui.geometry.RoundRect(cx + w * 0.3f * s, top + h * s * 0.25f, cx + w * 0.42f * s, top + h * s * 0.58f, CornerRadius(12f)))
         }
-        drawPath(body, Color.White.copy(alpha = 0.08f))
+        drawPath(body, Palette.ink.copy(alpha = 0.08f))
         clipPath(body) {
             val level = h - (h - top) * f.coerceAtMost(1f)
             val wave = Path().apply {
@@ -197,7 +197,7 @@ private fun Gauge(pct: Double, c: Color, modifier: Modifier) {
     Box(modifier, contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(84.dp)) {
             val st = 10f
-            drawArc(Color.White.copy(alpha = 0.07f), 135f, 270f, false, Offset(st, st), Size(size.width - 2 * st, size.height - 2 * st), style = Stroke(st, cap = StrokeCap.Round))
+            drawArc(Palette.ink.copy(alpha = 0.07f), 135f, 270f, false, Offset(st, st), Size(size.width - 2 * st, size.height - 2 * st), style = Stroke(st, cap = StrokeCap.Round))
             drawArc(c, 135f, 270f * a.value, false, Offset(st, st), Size(size.width - 2 * st, size.height - 2 * st), style = Stroke(st, cap = StrokeCap.Round))
         }
         Text("${pct.toInt()}%", color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 16.sp, textAlign = TextAlign.Center)

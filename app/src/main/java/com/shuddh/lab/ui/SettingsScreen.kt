@@ -93,7 +93,7 @@ fun SettingsScreen(app: AppState) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.size(62.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Palette.accent, Palette.cyan))), contentAlignment = Alignment.Center) {
-                    Text(name.split(" ", "-").filter { it.isNotBlank() }.take(2).joinToString("") { it.first().uppercase() }.ifBlank { "S" }, color = Color(0xFF032016), fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 22.sp)
+                    Text(name.split(" ", "-").filter { it.isNotBlank() }.take(2).joinToString("") { it.first().uppercase() }.ifBlank { "S" }, color = Palette.onAccent, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 22.sp)
                 }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
@@ -116,6 +116,10 @@ fun SettingsScreen(app: AppState) {
                             Text(t.label, color = if (sel) Palette.text else Palette.muted, fontSize = 10.sp)
                         }
                     }
+                }
+                ToggleRow("☀️", "Light mode", "Bright, clean look — switch off for dark mode", UiPrefs.light) {
+                    UiPrefs.light = it
+                    app.ctx.getSharedPreferences("shuddh_ui", android.content.Context.MODE_PRIVATE).edit().putBoolean("light", it).apply()
                 }
                 ToggleRow("🌀", "Reduce motion", "Calmer screens: no aurora drift or entrance animations", UiPrefs.reduceMotion) {
                     UiPrefs.reduceMotion = it; app.prefs.reduceMotion = it
@@ -280,7 +284,7 @@ private fun Field(label: String, value: String, onChange: (String) -> Unit) {
         Text(label, color = Palette.muted, fontSize = 11.sp)
         BasicTextField(
             value, onChange, singleLine = true,
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp).clip(RoundedCornerShape(12.dp)).background(Color(0x22000000)).border(1.dp, Palette.line, RoundedCornerShape(12.dp)).padding(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp).clip(RoundedCornerShape(12.dp)).background(Palette.well(0x22)).border(1.dp, Palette.line, RoundedCornerShape(12.dp)).padding(12.dp),
             textStyle = TextStyle(color = Palette.text, fontSize = 15.sp, fontFamily = Body), cursorBrush = SolidColor(Palette.cyan),
         )
     }

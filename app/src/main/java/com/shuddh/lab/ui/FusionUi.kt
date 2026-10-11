@@ -50,7 +50,7 @@ fun FusionBars(f: Fusion.Fused, full: Double, show: (Double, Double) -> String) 
             val grow by animateFloatAsState((p.value / full).toFloat().coerceIn(0f, 1f), tween(800), label = "b$i")
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(p.sensor, color = Palette.muted, fontSize = 11.sp, modifier = Modifier.weight(1.1f))
-                Box(Modifier.weight(1.4f).height(10.dp).clip(RoundedCornerShape(5.dp)).background(Color(0x22FFFFFF))) {
+                Box(Modifier.weight(1.4f).height(10.dp).clip(RoundedCornerShape(5.dp)).background(Palette.veil(0x22))) {
                     Box(Modifier.fillMaxWidth(grow).fillMaxHeight().background(if (p.sensor == f.outlier) Palette.amber else Palette.cyan))
                 }
                 Text("${show(p.value, p.sigma)} · ${(f.weights[i] * 100).toInt()}%w", color = Palette.text, fontSize = 11.sp, modifier = Modifier.weight(1f))
@@ -60,7 +60,7 @@ fun FusionBars(f: Fusion.Fused, full: Double, show: (Double, Double) -> String) 
             val grow by animateFloatAsState((f.value / full).toFloat().coerceIn(0f, 1f), tween(900), label = "fused")
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("FUSED", color = Palette.text, fontSize = 11.sp, fontWeight = FontWeight.Black, modifier = Modifier.weight(1.1f))
-                Box(Modifier.weight(1.4f).height(12.dp).clip(RoundedCornerShape(6.dp)).background(Color(0x22FFFFFF))) {
+                Box(Modifier.weight(1.4f).height(12.dp).clip(RoundedCornerShape(6.dp)).background(Palette.veil(0x22))) {
                     Box(Modifier.fillMaxWidth(grow).fillMaxHeight().background(Palette.accent))
                 }
                 Text(show(f.value, f.sigma), color = Palette.text, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))

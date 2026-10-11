@@ -64,8 +64,8 @@ fun instrumentLook(instrument: String): Pair<Glyph, Color> = when (instrument.re
     "Echo" -> Glyph.ECHO to Palette.blue
     "Nami" -> Glyph.NAMI to Palette.cyan
     "Strips" -> Glyph.STRIP to Palette.accent
-    "Hawa" -> Glyph.SCATTER to Color(0xFF9AD0C2)
-    "Float" -> Glyph.FLOAT to Color(0xFFE8F1EC)
+    "Hawa" -> Glyph.SCATTER to Palette.tint(Color(0xFF9AD0C2))
+    "Float" -> Glyph.FLOAT to Palette.tint(Color(0xFFE8F1EC))
     "Magneto" -> Glyph.MAGNET to Palette.violet
     "Lens" -> Glyph.STRIP to Palette.amber
     else -> Glyph.SPARK to Palette.cyan
@@ -211,7 +211,7 @@ private fun IconAction(glyph: String, label: String, enabled: Boolean, onClick: 
 private fun FilterPill(text: String, selected: Boolean, onClick: () -> Unit) {
     Text(
         text, fontSize = 12.sp, maxLines = 1, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-        color = if (selected) Color(0xFF032016) else Palette.text,
+        color = if (selected) Palette.onAccent else Palette.text,
         modifier = Modifier.clip(RoundedCornerShape(50))
             .background(if (selected) Brush.horizontalGradient(listOf(Palette.accent, Palette.cyan)) else Brush.horizontalGradient(listOf(Palette.glass, Palette.glass)))
             .border(1.dp, if (selected) Color.Transparent else Palette.line, RoundedCornerShape(50))
@@ -253,7 +253,7 @@ private fun HistoryCard(app: AppState, r: ScanRecord, open: Boolean, broken: Int
     val lc = Color(r.level.argb)
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
-            .background(Brush.horizontalGradient(listOf(lc.copy(alpha = 0.10f), Color(0x0FFFFFFF))))
+            .background(Brush.horizontalGradient(listOf(lc.copy(alpha = 0.10f), Palette.veil(0x0F))))
             .border(1.dp, if (open) lc.copy(alpha = 0.6f) else Palette.line, RoundedCornerShape(20.dp))
             .clickable(onClick = onToggle),
     ) {

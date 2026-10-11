@@ -120,7 +120,7 @@ private fun HiveNetwork(peers: Int, reports: List<CommunityItem>, live: Boolean)
     val spin by inf.animateFloat(0f, 360f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(40000, easing = androidx.compose.animation.core.LinearEasing)), label = "spin")
     val cyan = Palette.cyan
     val nodes = (List(peers.coerceAtMost(6)) { Color(0xFFA78BFA) to null } + reports.map { Color(it.level.argb) to it }).ifEmpty {
-        List(6) { Color.White.copy(alpha = 0.25f) to null }
+        List(6) { Palette.ink.copy(alpha = 0.25f) to null }
     }
     androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(200.dp)) {
         val c = androidx.compose.ui.geometry.Offset(size.width / 2, size.height / 2)
@@ -137,7 +137,7 @@ private fun HiveNetwork(peers: Int, reports: List<CommunityItem>, live: Boolean)
         }
         // Links + travelling pulses (unsafe reports pulse red toward you).
         pos.forEachIndexed { i, p ->
-            drawLine(Color.White.copy(alpha = 0.12f), c, p, 2f)
+            drawLine(Palette.ink.copy(alpha = 0.12f), c, p, 2f)
             val (col, item) = nodes[i]
             if (item != null || live) {
                 val q = (t + i * 0.13f) % 1f
@@ -146,13 +146,13 @@ private fun HiveNetwork(peers: Int, reports: List<CommunityItem>, live: Boolean)
             }
         }
         // Mesh between neighbours.
-        for (i in pos.indices) { val j = (i + 2) % pos.size; if (pos.size > 3) drawLine(Color.White.copy(alpha = 0.05f), pos[i], pos[j], 1.5f) }
+        for (i in pos.indices) { val j = (i + 2) % pos.size; if (pos.size > 3) drawLine(Palette.ink.copy(alpha = 0.05f), pos[i], pos[j], 1.5f) }
         pos.forEachIndexed { i, p ->
             val col = nodes[i].first
             drawCircle(col.copy(alpha = 0.25f), 18f, p); drawCircle(col, 10f, p)
         }
         drawCircle(Brush.radialGradient(listOf(cyan, cyan.copy(alpha = 0.2f)), c, 42f), 38f, c)
-        drawCircle(Color.White, 14f, c)
+        drawCircle(Palette.ink, 14f, c)
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
         Legend(Color(0xFFA78BFA), "$peers phones nearby")
@@ -256,7 +256,7 @@ private fun TrustBoard(app: AppState, onSeal: (String) -> Unit) {
                         Text(v.name, color = Palette.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 1)
                         Badge(when { score >= 75 -> "TRUSTED"; score >= 50 -> "WATCH"; else -> "AVOID" }, c)
                     }
-                    Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.06f))) {
+                    Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Palette.ink.copy(alpha = 0.06f))) {
                         Box(Modifier.fillMaxWidth(a).height(8.dp).clip(RoundedCornerShape(4.dp)).background(Brush.horizontalGradient(listOf(c.copy(alpha = 0.5f), c))))
                     }
                     Text("$score/100 · ${v.total.toInt()} results" + if (v.own > 0) " · ${v.own} yours" else "", color = Palette.muted, fontSize = 11.sp)
@@ -272,7 +272,7 @@ private fun TrustBoard(app: AppState, onSeal: (String) -> Unit) {
 private fun FeedRow(it: CommunityItem, modifier: Modifier, onRemove: () -> Unit) {
     val c = Color(it.level.argb)
     val ago = ((System.currentTimeMillis() - it.time) / 60000).let { m -> when { m < 60 -> "${m}m ago"; m < 1440 -> "${m / 60}h ago"; else -> "${m / 1440}d ago" } }
-    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Brush.horizontalGradient(listOf(c.copy(alpha = 0.16f), Color(0x08FFFFFF)))), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Brush.horizontalGradient(listOf(c.copy(alpha = 0.16f), Palette.veil(0x08)))), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(5.dp).height(58.dp).background(c))
         Column(Modifier.weight(1f).padding(10.dp)) {
             Text(it.describe(), color = Palette.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 2)
@@ -365,7 +365,7 @@ fun HiveSheetView(app: AppState, sheet: HiveSheet, onDone: (String?) -> Unit) {
 
     androidx.compose.ui.window.Dialog(onDismissRequest = { onDone(null) }, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
-            Modifier.fillMaxWidth().padding(12.dp).clip(RoundedCornerShape(28.dp)).background(Color(0xFF0B1220))
+            Modifier.fillMaxWidth().padding(12.dp).clip(RoundedCornerShape(28.dp)).background(Palette.card)
                 .verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -389,7 +389,7 @@ fun HiveSheetView(app: AppState, sheet: HiveSheet, onDone: (String?) -> Unit) {
                         recent.forEach { r ->
                             val it = CommunityItem.alertFrom(r)
                             val on = picked?.ref == it.ref
-                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(if (on) Color(r.level.argb).copy(alpha = 0.25f) else Color.White.copy(alpha = 0.05f))
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(if (on) Color(r.level.argb).copy(alpha = 0.25f) else Palette.ink.copy(alpha = 0.05f))
                                 .clickable { picked = it }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Box(Modifier.size(10.dp).background(Color(r.level.argb), CircleShape)); Spacer(Modifier.width(10.dp))
                                 Text(it.describe(), color = Palette.text, fontSize = 13.sp, modifier = Modifier.weight(1f))
@@ -401,8 +401,8 @@ fun HiveSheetView(app: AppState, sheet: HiveSheet, onDone: (String?) -> Unit) {
                     androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         problems.forEach { p ->
                             val on = picked == null && product == p
-                            Text(p, color = if (on) Color.Black else Palette.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) Palette.amber else Color.White.copy(alpha = 0.07f)).clickable { product = p; picked = null }.padding(horizontal = 10.dp, vertical = 7.dp))
+                            Text(p, color = if (on) Palette.on(Palette.amber) else Palette.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) Palette.amber else Palette.ink.copy(alpha = 0.07f)).clickable { product = p; picked = null }.padding(horizontal = 10.dp, vertical = 7.dp))
                         }
                     }
                     if (picked == null) {
@@ -410,8 +410,8 @@ fun HiveSheetView(app: AppState, sheet: HiveSheet, onDone: (String?) -> Unit) {
                         androidx.compose.material3.OutlinedTextField(area, { area = it }, label = { Text("Area") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             listOf(Level.UNSAFE, Level.CAUTION).forEach { l ->
-                                Text(if (l == Level.UNSAFE) "Unsafe" else "Suspicious", color = if (level == l) Color.Black else Palette.text, fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (level == l) Color(l.argb) else Color.White.copy(alpha = 0.06f)).clickable { level = l }.padding(10.dp),
+                                Text(if (l == Level.UNSAFE) "Unsafe" else "Suspicious", color = if (level == l) Palette.on(Color(l.argb)) else Palette.text, fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (level == l) Color(l.argb) else Palette.ink.copy(alpha = 0.06f)).clickable { level = l }.padding(10.dp),
                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                             }
                         }

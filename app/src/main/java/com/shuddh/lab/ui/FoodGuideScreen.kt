@@ -125,7 +125,7 @@ fun FoodGuideScreen(app: AppState) {
             val arrow by animateFloatAsState(if (isOpen) 90f else 0f, label = "arrow")
             Column(
                 Modifier.fillMaxWidth().enter(i.coerceAtMost(6)).clip(RoundedCornerShape(20.dp))
-                    .background(Brush.horizontalGradient(listOf(if (isOpen) Palette.accent.copy(alpha = 0.10f) else Color(0x12FFFFFF), Color(0x0AFFFFFF))))
+                    .background(Brush.horizontalGradient(listOf(if (isOpen) Palette.accent.copy(alpha = 0.10f) else Palette.veil(0x12), Palette.veil(0x0A))))
                     .border(1.dp, if (isOpen) Palette.accent.copy(alpha = 0.4f) else Palette.line, RoundedCornerShape(20.dp))
                     .clickable { open = if (isOpen) null else g }.padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),

@@ -139,8 +139,8 @@ fun BleachPanel(app: AppState, close: () -> Unit) {
                 listOf(false to "Clear", true to "Cloudy").forEach { (v, t) ->
                     val sel = v == cloudy
                     Text(t, color = if (sel) Palette.text else Palette.muted, fontSize = 14.sp, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal, textAlign = TextAlign.Center,
-                        modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (sel) waterBlue.copy(alpha = 0.25f) else Color(0x10FFFFFF))
-                            .border(1.dp, if (sel) waterBlue else Color(0x22FFFFFF), RoundedCornerShape(12.dp)).clickable { cloudy = v }.padding(vertical = 10.dp))
+                        modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (sel) waterBlue.copy(alpha = 0.25f) else Palette.veil(0x10))
+                            .border(1.dp, if (sel) waterBlue else Palette.veil(0x22), RoundedCornerShape(12.dp)).clickable { cloudy = v }.padding(vertical = 10.dp))
                 }
             }
             Btn(if (showCam) "Hide camera" else "📷  Check clarity with camera", Modifier.fillMaxWidth(), primary = false) { showCam = !showCam }
@@ -228,7 +228,7 @@ fun H2sPanel(app: AppState, onBleach: () -> Unit, close: () -> Unit) {
                 Text("Incubating · ${fmt(hours!!)} h", color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 22.sp)
                 Text("${store.optString("source")}. Read it at 24 h, and again at 48 h if it hasn't turned black.", color = Palette.muted, fontSize = 13.sp, lineHeight = 18.sp)
                 val p by animateFloatAsState((hours / 48.0).toFloat().coerceIn(0f, 1f), tween(600), label = "h")
-                Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Color(0x22FFFFFF))) {
+                Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Palette.veil(0x22))) {
                     Box(Modifier.fillMaxWidth(p).height(8.dp).background(Palette.amber))
                 }
                 Text("24 h ─────────────── 48 h", color = Palette.muted, fontSize = 11.sp)
@@ -238,7 +238,7 @@ fun H2sPanel(app: AppState, onBleach: () -> Unit, close: () -> Unit) {
         if (started == null) {
             androidx.compose.material3.OutlinedTextField(
                 value = source, onValueChange = { source = it.take(40) }, label = { Text("Where is this water from?") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedTextColor = Palette.text, unfocusedTextColor = Palette.text, focusedBorderColor = waterBlue, unfocusedBorderColor = Color(0x33FFFFFF), focusedLabelColor = waterBlue, unfocusedLabelColor = Palette.muted),
+                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedTextColor = Palette.text, unfocusedTextColor = Palette.text, focusedBorderColor = waterBlue, unfocusedBorderColor = Palette.veil(0x33), focusedLabelColor = waterBlue, unfocusedLabelColor = Palette.muted),
             )
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
@@ -337,7 +337,7 @@ fun OrsPanel(app: AppState, close: () -> Unit) {
                 val on = i in checked.value
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { checked.value = if (on) checked.value - i else checked.value + i }.padding(vertical = 6.dp)) {
-                    Box(Modifier.size(24.dp).clip(RoundedCornerShape(6.dp)).background(if (on) Palette.red else Color(0x14FFFFFF)).border(1.5.dp, if (on) Palette.red else Color(0x33FFFFFF), RoundedCornerShape(6.dp)), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(24.dp).clip(RoundedCornerShape(6.dp)).background(if (on) Palette.red else Palette.veil(0x14)).border(1.5.dp, if (on) Palette.red else Palette.veil(0x33), RoundedCornerShape(6.dp)), contentAlignment = Alignment.Center) {
                         if (on) Text("✓", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                     Text(sgn, color = Palette.text, fontSize = 14.sp, lineHeight = 19.sp, modifier = Modifier.weight(1f))
@@ -355,7 +355,7 @@ fun OrsPanel(app: AppState, close: () -> Unit) {
 
 @Composable
 private fun OrsItem(e: String, v: String, l: String, modifier: Modifier) {
-    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Color(0x14FFFFFF)).padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Palette.veil(0x14)).padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(e, fontSize = 22.sp)
         Text(v, color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 17.sp, maxLines = 1)
         Text(l, color = Palette.muted, fontSize = 11.sp)

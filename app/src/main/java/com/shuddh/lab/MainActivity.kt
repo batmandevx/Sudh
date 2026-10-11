@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -81,14 +82,34 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Light theme by default; status-bar icons follow the theme.
+        com.shuddh.lab.ui.UiPrefs.light = getSharedPreferences("shuddh_ui", MODE_PRIVATE).getBoolean("light", true)
+        // Debug: adb shell am start ... --ez light false
+        if (intent?.hasExtra("light") == true) intent.getBooleanExtra("light", true).let { l ->
+            com.shuddh.lab.ui.UiPrefs.light = l; getSharedPreferences("shuddh_ui", MODE_PRIVATE).edit().putBoolean("light", l).apply()
+        }
+        androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = com.shuddh.lab.ui.UiPrefs.light
         app = AppState(applicationContext)
+        // Debug hook: --ez dumptrain true → logs Purity training samples (features only).
+        if (intent?.getBooleanExtra("dumptrain", false) == true) com.shuddh.lab.core.PurityTrain.load(com.shuddh.lab.core.Prefs(this).json("purity_train")).forEach { s ->
+            android.util.Log.w("PurityDump", "${s.label} " + s.f.entries.sortedBy { it.key }.joinToString(" ") { "${it.key}=${String.format(java.util.Locale.US, "%.3f", it.value)}" })
+        }
         // Debug hook: --ez ringinfo true → logs what the vivo light service supports.
         if (intent?.getBooleanExtra("ringinfo", false) == true) com.shuddh.lab.core.BackLight.probe().lines().forEach { android.util.Log.w("RingInfo", it) }
         // Debug hook: --es backlight "ff0000:500:0" (rgb:type:preview) → lights the vivo back ring and logs the result.
+        intent?.getStringExtra("say")?.let { app.voice.speak(it, app.lang) }
+        // Developer test fixture: --ez purity_fixture true → next 5 Purity runs show the scripted results, badged TEST DATA.
+        if (intent?.getBooleanExtra("purity_fixture", false) == true) app.prefs.putJson("purity_fixture", org.json.JSONObject().put("left", 5))
+        // Debug hook: --es gamelight "colorIdx:id:type:subtype:times"
+        intent?.getStringExtra("gamelight")?.let { g -> val v = g.split(":").map { it.toIntOrNull() ?: 0 }
+            com.shuddh.lab.core.BackLight.setGame(this, v.getOrElse(0) { 0 }, v.getOrElse(1) { 1001 }, v.getOrElse(2) { 1 }, v.getOrElse(3) { 0 }, v.getOrElse(4) { 0 }) }
         intent?.getStringExtra("backlight")?.let { spec ->
             val (rgb, type, prev) = (spec.split(":") + listOf("500", "0")).let { Triple(it[0], it[1], it[2]) }
             if (rgb == "off") com.shuddh.lab.core.BackLight.off(this) else {
-                val ok = com.shuddh.lab.core.BackLight.setRaw(this, (0xFF000000 or rgb.toLong(16)).toInt(), 0, type.toInt(), prev == "1")
+                // spec "rrggbb:type:preview[:effect]" — effect -1 = constant colour, ≥0 = prebaked effect.
+                val eff = spec.split(":").getOrNull(3)?.toIntOrNull() ?: -1
+                val enc = spec.split(":").getOrNull(4)?.toIntOrNull() ?: 0
+                val ok = com.shuddh.lab.core.BackLight.setRaw(this, (0xFF000000 or rgb.toLong(16)).toInt(), 0, type.toInt(), prev == "1", enc = enc, effect = eff)
                 android.util.Log.w("BackLight", "available=${com.shuddh.lab.core.BackLight.available()} ok=$ok err=${com.shuddh.lab.core.BackLight.lastError}")
             }
         }
@@ -144,7 +165,14 @@ class MainActivity : ComponentActivity() {
         intent?.getStringExtra("screen")?.let { name ->
             runCatching { Screen.valueOf(name) }.getOrNull()?.let { if (app.prefs.onboarded) app.go(it) }
         }
-        setContent { ShuddhTheme { Root(app) } }
+        setContent {
+            ShuddhTheme {
+                LaunchedEffect(com.shuddh.lab.ui.UiPrefs.light) {
+                    androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = com.shuddh.lab.ui.UiPrefs.light
+                }
+                Root(app)
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -170,6 +198,8 @@ private fun Root(app: AppState) {
                 when (screen) {
                     Screen.ONBOARDING -> OnboardingScreen(app) { launcher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)) }
                     Screen.HOME -> HomeScreen(app)
+                    Screen.TOOLS -> com.shuddh.lab.ui.ToolsScreen(app)
+                    Screen.WAX -> com.shuddh.lab.instruments.WaxScreen(app)
                     Screen.SPECTRUM -> SpectrumScreen(app)
                     Screen.POLAR -> PolarScreen(app)
                     Screen.NIR -> NirScreen(app)
@@ -223,9 +253,11 @@ private fun BottomBar(app: AppState, current: Screen) {
     // Floating glass pill — no backdrop strip behind it.
     Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
         Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp))
-                .background(Brush.verticalGradient(listOf(Color(0xE61A2436), Color(0xF00E1522))))
-                .border(1.dp, Color(0x26FFFFFF), RoundedCornerShape(28.dp)).padding(6.dp),
+            Modifier.fillMaxWidth()
+                .then(if (Palette.light) Modifier.shadow(16.dp, RoundedCornerShape(28.dp), ambientColor = Color(0x330F172A), spotColor = Color(0x330F172A)) else Modifier)
+                .clip(RoundedCornerShape(28.dp))
+                .background(Brush.verticalGradient(if (Palette.light) listOf(Color(0xF7FFFFFF), Color(0xF2F8FAFD)) else listOf(Color(0xE61A2436), Color(0xF00E1522))))
+                .border(1.dp, Palette.veil(0x26), RoundedCornerShape(28.dp)).padding(6.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             listOf(
@@ -243,8 +275,8 @@ private fun BottomBar(app: AppState, current: Screen) {
                         .clickable { app.tab(s) }.padding(vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Icon(icon, label, tint = if (sel) Color(0xFF032016) else Palette.muted, modifier = Modifier.size(22.dp))
-                    Text(com.shuddh.lab.ui.tr(label), fontSize = 11.sp, maxLines = 1, softWrap = false, color = if (sel) Color(0xFF032016) else Palette.muted, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
+                    Icon(icon, label, tint = if (sel) Palette.onAccent else Palette.muted, modifier = Modifier.size(22.dp))
+                    Text(com.shuddh.lab.ui.tr(label), fontSize = 11.sp, maxLines = 1, softWrap = false, color = if (sel) Palette.onAccent else Palette.muted, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
                 }
             }
         }

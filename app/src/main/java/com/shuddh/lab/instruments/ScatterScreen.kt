@@ -83,7 +83,7 @@ private enum class ScatterMode(val label: String, val id: String, val title: Txt
     WATER("💧 Water turbidity", "water_turbidity", Txt("Water clarity", "पानी का गंदलापन", "ನೀರಿನ ಮಬ್ಬು"), Words.turbid),
 }
 
-private val bandColors = listOf(Color(0xFF34D399), Color(0xFFA3E635), Color(0xFFFBBF24), Color(0xFFF97316), Color(0xFFF43F5E))
+private val bandColors = listOf(Color(0xFF34D399), Palette.tint(Color(0xFFA3E635)), Palette.tint(Color(0xFFFBBF24)), Color(0xFFF97316), Color(0xFFF43F5E))
 
 /** Mean RGB of the ROI plus "sparkle": the fraction of pixels far brighter than the ROI mean (coarse specks). */
 private fun roiStats(bmp: Bitmap, r: RectF): DoubleArray {
@@ -257,7 +257,7 @@ fun ScatterScreen(app: AppState) {
         Section("Camera view (beam from the side)") {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(Modifier.width(140.dp)) {
-                    CameraView(cam, Modifier.fillMaxWidth(), widthFraction = 1f, overlay = { roi(box, Color(0xFF9AD0C2)) }) { bmp ->
+                    CameraView(cam, Modifier.fillMaxWidth(), widthFraction = 1f, overlay = { roi(box, Palette.tint(Color(0xFF9AD0C2))) }) { bmp ->
                         val st = roiStats(bmp, box)
                         val on = flashOn.get()
                         val sat = st[0] > 250 || st[1] > 250 || st[2] > 250
@@ -312,7 +312,7 @@ fun ScatterScreen(app: AppState) {
 @Composable
 private fun ProgressBar(p: Float) {
     val a by animateFloatAsState(p, tween(300), label = "p")
-    Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(Color.White.copy(alpha = 0.08f))) {
+    Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(Palette.ink.copy(alpha = 0.08f))) {
         Box(Modifier.fillMaxWidth(a).height(6.dp).clip(RoundedCornerShape(3.dp)).background(Brush.horizontalGradient(listOf(Palette.cyan, Palette.accent))))
     }
 }
@@ -369,8 +369,8 @@ private fun HazeGauge(ratio: Double?, bands: List<Nephelo.Band>, modifier: Modif
             if (ratio != null) {
                 val a = Math.toRadians(180.0 + 180.0 * v)
                 val tip = Offset(c.x + (r - 6) * cos(a).toFloat(), c.y + (r - 6) * sin(a).toFloat())
-                drawLine(Color.White, c, tip, 6f, StrokeCap.Round)
-                drawCircle(Color.White, 9f, c)
+                drawLine(Palette.ink, c, tip, 6f, StrokeCap.Round)
+                drawCircle(Palette.ink, 9f, c)
             }
         }
         Text(ratio?.let { "${fmt(it)}×" } ?: "—", color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 20.sp, modifier = Modifier.padding(bottom = 14.dp))
@@ -384,7 +384,7 @@ private fun LockInTrace(trace: List<Pair<Float, Boolean>>) {
         if (trace.size < 2) return@Canvas
         val lo = trace.minOf { it.first }; val hi = trace.maxOf { it.first }.coerceAtLeast(lo + 1f)
         val dx = size.width / (trace.size - 1)
-        trace.forEachIndexed { i, (_, on) -> if (on) drawRect(Color(0xFFFBBF24).copy(alpha = 0.12f), Offset(i * dx - dx / 2, 0f), Size(dx + 1f, size.height)) }
+        trace.forEachIndexed { i, (_, on) -> if (on) drawRect(Palette.tint(Color(0xFFFBBF24)).copy(alpha = 0.12f), Offset(i * dx - dx / 2, 0f), Size(dx + 1f, size.height)) }
         val p = Path()
         trace.forEachIndexed { i, (v, _) ->
             val y = size.height - 6f - (size.height - 12f) * (v - lo) / (hi - lo)
@@ -398,7 +398,7 @@ private fun LockInTrace(trace: List<Pair<Float, Boolean>>) {
 private fun ColourBars(s: Nephelo.Reading, c: Nephelo.Reading) {
     val ex = listOf(
         Triple("Red", (s.r - c.r) / c.r.coerceAtLeast(0.5), Color(0xFFF87171)),
-        Triple("Green", (s.g - c.g) / c.g.coerceAtLeast(0.5), Color(0xFF4ADE80)),
+        Triple("Green", (s.g - c.g) / c.g.coerceAtLeast(0.5), Palette.tint(Color(0xFF4ADE80))),
         Triple("Blue", (s.b - c.b) / c.b.coerceAtLeast(0.5), Color(0xFF60A5FA)),
     )
     val top = ex.maxOf { it.second }.coerceAtLeast(0.01)
@@ -406,7 +406,7 @@ private fun ColourBars(s: Nephelo.Reading, c: Nephelo.Reading) {
         val a by animateFloatAsState((v / top).toFloat().coerceIn(0.02f, 1f), tween(900, delayMillis = i * 120), label = name)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(name, color = Palette.text, fontSize = 12.sp, modifier = Modifier.width(50.dp))
-            Box(Modifier.weight(1f).height(14.dp).clip(RoundedCornerShape(7.dp)).background(Color.White.copy(alpha = 0.06f))) {
+            Box(Modifier.weight(1f).height(14.dp).clip(RoundedCornerShape(7.dp)).background(Palette.ink.copy(alpha = 0.06f))) {
                 Box(Modifier.fillMaxWidth(a).height(14.dp).clip(RoundedCornerShape(7.dp)).background(Brush.horizontalGradient(listOf(col.copy(alpha = 0.5f), col))))
             }
             Text(" +${(v * 100).toInt()}%", color = Palette.muted, fontSize = 11.sp, modifier = Modifier.width(54.dp))
@@ -421,7 +421,7 @@ private fun CycleDots(sample: List<Double>, clean: List<Double>) {
         val all = sample + clean
         val lo = all.min(); val hi = all.max().coerceAtLeast(lo + 0.5)
         fun x(v: Double) = 12f + (size.width - 24f) * ((v - lo) / (hi - lo)).toFloat()
-        drawLine(Color.White.copy(alpha = 0.15f), Offset(0f, size.height / 2), Offset(size.width, size.height / 2), 2f)
+        drawLine(Palette.ink.copy(alpha = 0.15f), Offset(0f, size.height / 2), Offset(size.width, size.height / 2), 2f)
         clean.forEachIndexed { i, v -> drawCircle(cyan, 8f, Offset(x(v), size.height / 2 - 10f + (i % 2) * 6f)) }
         sample.forEachIndexed { i, v -> drawCircle(amber, 8f, Offset(x(v), size.height / 2 + 10f - (i % 2) * 6f)) }
     }
@@ -440,6 +440,6 @@ private fun TrendChart(trend: List<Float>, bands: List<Nephelo.Band>) {
         val p = Path()
         trend.forEachIndexed { i, v -> val y = size.height * (1 - (v / maxV).coerceIn(0f, 1f)); if (i == 0) p.moveTo(0f, y) else p.lineTo(i * dx, y) }
         drawPath(p, Color.White, style = Stroke(4f, cap = StrokeCap.Round))
-        trend.lastOrNull()?.let { drawCircle(Color.White, 7f, Offset((trend.size - 1) * dx, size.height * (1 - (it / maxV).coerceIn(0f, 1f)))) }
+        trend.lastOrNull()?.let { drawCircle(Palette.ink, 7f, Offset((trend.size - 1) * dx, size.height * (1 - (it / maxV).coerceIn(0f, 1f)))) }
     }
 }

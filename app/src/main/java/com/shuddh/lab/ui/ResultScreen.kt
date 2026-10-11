@@ -245,7 +245,7 @@ private fun VerdictFx(level: Level, modifier: Modifier) {
         when (level) {
             Level.SAFE -> {
                 val t = burst.value
-                val cols = listOf(c, Palette.cyan, Color(0xFFFDE047))
+                val cols = listOf(c, Palette.cyan, Palette.tint(Color(0xFFFDE047)))
                 parts.forEach { (ang, sp, ci) ->
                     val d = t * sp * size.minDimension * 0.62f
                     val p = androidx.compose.ui.geometry.Offset(ctr.x + kotlin.math.cos(ang) * d, ctr.y + kotlin.math.sin(ang) * d + t * t * 60f)
@@ -289,7 +289,7 @@ private fun ConfidenceCard(o: com.shuddh.lab.core.Outcome, modifier: Modifier) {
                 androidx.compose.foundation.Canvas(Modifier.size(92.dp)) {
                     val st = 12f
                     val tl = androidx.compose.ui.geometry.Offset(st, st); val sz = androidx.compose.ui.geometry.Size(size.width - 2 * st, size.height - 2 * st)
-                    drawArc(Color.White.copy(alpha = 0.07f), 0f, 360f, false, tl, sz, style = androidx.compose.ui.graphics.drawscope.Stroke(st))
+                    drawArc(Palette.ink.copy(alpha = 0.07f), 0f, 360f, false, tl, sz, style = androidx.compose.ui.graphics.drawscope.Stroke(st))
                     drawArc(Brush.sweepGradient(listOf(col.copy(alpha = 0.5f), col, col.copy(alpha = 0.5f))), -90f, 360f * a.value, false, tl, sz,
                         style = androidx.compose.ui.graphics.drawscope.Stroke(st, cap = androidx.compose.ui.graphics.StrokeCap.Round))
                 }

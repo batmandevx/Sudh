@@ -58,8 +58,8 @@ fun SteadyBar(m: Motion, waveHint: String? = null) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Canvas(Modifier.size(54.dp)) {
                 val r = size.minDimension / 2
-                drawCircle(Color.White.copy(alpha = 0.06f), r)
-                drawCircle(Color.White.copy(alpha = 0.25f), r * 0.32f, style = Stroke(2f))
+                drawCircle(Palette.ink.copy(alpha = 0.06f), r)
+                drawCircle(Palette.ink.copy(alpha = 0.25f), r * 0.32f, style = Stroke(2f))
                 val p = Offset(center.x - bx * r * 0.7f, center.y + by * r * 0.7f)
                 drawCircle(Brush.radialGradient(listOf(col, col.copy(alpha = 0.3f)), p, r * 0.25f), r * 0.24f, p)
             }
@@ -85,7 +85,7 @@ fun GateMeter(accepted: Int, rejected: Int) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text("Frames kept ${accepted}/${accepted + rejected}", color = Palette.muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
         Canvas(Modifier.width(120.dp).size(120.dp, 8.dp)) {
-            drawRoundRect(Color.White.copy(alpha = 0.08f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f))
+            drawRoundRect(Palette.ink.copy(alpha = 0.08f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f))
             drawRoundRect(Palette.accent, size = androidx.compose.ui.geometry.Size(size.width * accepted / total, size.height), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f))
         }
     }

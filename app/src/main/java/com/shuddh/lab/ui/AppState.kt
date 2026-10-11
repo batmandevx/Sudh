@@ -21,7 +21,7 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-enum class Screen { HOME, SPECTRUM, POLAR, NIR, ECHO, NAMI, MAGNETO, MESH, ASSISTANT, WHISTLE, LENS, MODELS, MEDIA, VIDEO, MAP, BADGES, FOODGUIDE, PANTRY, PULSE, VISION, BOIL, OIL, GRAIN, OUTBREAK, ANAEMIA, MOSQUITO, GUARDIAN, EXPOSURE, MILKMAN, PURITY, DART, STRIP, SCATTER, FLOAT, RESULT, HISTORY, INSIGHTS, COMMUNITY, SETTINGS, GUIDE, ONBOARDING }
+enum class Screen { HOME, SPECTRUM, POLAR, NIR, ECHO, NAMI, MAGNETO, MESH, ASSISTANT, WHISTLE, LENS, MODELS, MEDIA, VIDEO, MAP, BADGES, FOODGUIDE, PANTRY, PULSE, VISION, BOIL, OIL, GRAIN, OUTBREAK, ANAEMIA, MOSQUITO, GUARDIAN, EXPOSURE, MILKMAN, PURITY, DART, STRIP, SCATTER, FLOAT, RESULT, HISTORY, INSIGHTS, COMMUNITY, SETTINGS, GUIDE, TOOLS, WAX, ONBOARDING }
 
 /** Top-level destinations shown in the bottom bar. */
 val tabs = listOf(Screen.HOME, Screen.HISTORY, Screen.INSIGHTS, Screen.COMMUNITY, Screen.SETTINGS)
@@ -250,6 +250,8 @@ class AppState(val ctx: Context) : com.shuddh.lab.core.AgentHost {
         prefs.lang = l
         if (l != Lang.EN) prefs.setFlag("polyglot")
     }
+
+    override fun pantryBrief(): String = com.shuddh.lab.core.PantrySmart.brief(pantry.restock())
 
     override fun openScreen(name: String): Boolean =
         runCatching { Screen.valueOf(name) }.getOrNull()?.let { go(it); true } ?: false

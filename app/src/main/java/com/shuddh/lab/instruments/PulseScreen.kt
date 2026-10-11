@@ -292,7 +292,7 @@ private fun HeartDial(phase: Phase, progress: Float, bpm: Double?, beatTick: Int
         Canvas(Modifier.size(230.dp)) {
             val st = 16f
             drawCircle(Brush.radialGradient(listOf(heartRed.copy(alpha = glow * 0.45f), Color.Transparent)), size.minDimension / 2)
-            drawArc(Color.White.copy(alpha = 0.07f), 0f, 360f, false, Offset(st, st), Size(size.width - 2 * st, size.height - 2 * st), style = Stroke(st))
+            drawArc(Palette.ink.copy(alpha = 0.07f), 0f, 360f, false, Offset(st, st), Size(size.width - 2 * st, size.height - 2 * st), style = Stroke(st))
             drawArc(Brush.sweepGradient(listOf(Color(0xFFFF8FA3), heartRed, Color(0xFFFF8FA3))), -90f, 360f * ring, false,
                 Offset(st, st), Size(size.width - 2 * st, size.height - 2 * st), style = Stroke(st, cap = StrokeCap.Round))
         }
@@ -308,7 +308,7 @@ private fun HeartDial(phase: Phase, progress: Float, bpm: Double?, beatTick: Int
                     close()
                 }
                 drawPath(heart, Brush.verticalGradient(listOf(Color(0xFFFF8FA3), heartRed, Color(0xFFC9184A))))
-                if (!finger && phase == Phase.PLACE) drawPath(heart, Color.White.copy(alpha = 0.25f), style = Stroke(4f))
+                if (!finger && phase == Phase.PLACE) drawPath(heart, Palette.ink.copy(alpha = 0.25f), style = Stroke(4f))
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(bpm?.let { "${it.toInt()}" } ?: if (phase == Phase.IDLE || phase == Phase.DONE) "" else "--", color = Color.White, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 30.sp)
@@ -321,8 +321,8 @@ private fun HeartDial(phase: Phase, progress: Float, bpm: Double?, beatTick: Int
 /** Scrolling, glowing pulse waveform (last ~6 s). */
 @Composable
 private fun LiveWave(w: List<Float>) {
-    Canvas(Modifier.fillMaxWidth().height(110.dp).clip(RoundedCornerShape(16.dp)).background(Color(0x55000000))) {
-        for (k in 1..3) drawLine(Color.White.copy(alpha = 0.05f), Offset(0f, size.height * k / 4), Offset(size.width, size.height * k / 4))
+    Canvas(Modifier.fillMaxWidth().height(110.dp).clip(RoundedCornerShape(16.dp)).background(Palette.well(0x55))) {
+        for (k in 1..3) drawLine(Palette.ink.copy(alpha = 0.05f), Offset(0f, size.height * k / 4), Offset(size.width, size.height * k / 4))
         if (w.size < 3) return@Canvas
         val n = 180
         val step = size.width / n
@@ -371,7 +371,7 @@ private fun ZoneGauge(bpm: Double) {
     Canvas(Modifier.fillMaxWidth().height(26.dp)) {
         val y = size.height / 2
         val w = size.width
-        val bands = listOf(0f to 1f / 6 to Color(0xFF60A5FA), 1f / 6 to 0.5f to Color(0xFF34D399), 0.5f to 1f to Color(0xFFFBBF24))
+        val bands = listOf(0f to 1f / 6 to Color(0xFF60A5FA), 1f / 6 to 0.5f to Color(0xFF34D399), 0.5f to 1f to Palette.tint(Color(0xFFFBBF24)))
         bands.forEach { (r, c) -> drawLine(c, Offset(w * r.first + 4, y), Offset(w * r.second - 4, y), 12f, StrokeCap.Round) }
         drawCircle(Color.White, 13f, Offset(w * a.value, y))
         drawCircle(heartRed, 7f, Offset(w * a.value, y))

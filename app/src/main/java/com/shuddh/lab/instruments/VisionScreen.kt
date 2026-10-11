@@ -281,7 +281,7 @@ private fun offCentre(p: List<P>): Boolean = p.firstOrNull()?.let { it.x < 0.12f
 private val handColor = Color(0xFF22D3EE)
 private val faceColor = Color(0xFFA78BFA)
 private val poseColor = Color(0xFF34D399)
-private val objColor = Color(0xFFFBBF24)
+private val objColor = Palette.tint(Color(0xFFFBBF24))
 
 private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 34f; typeface = Typeface.DEFAULT_BOLD; color = android.graphics.Color.BLACK }
 
@@ -321,7 +321,7 @@ private fun DrawScope.drawScene(s: Scene, mirror: Boolean, trail: List<P>) {
     }
     if (trail.size > 1) {
         val path = Path().apply { moveTo(X(trail[0].x), Y(trail[0].y)); trail.drop(1).forEach { lineTo(X(it.x), Y(it.y)) } }
-        drawPath(path, Brush.linearGradient(listOf(Color(0xFFF472B6), Color(0xFF22D3EE), Color(0xFFFBBF24))), style = Stroke(12f, cap = StrokeCap.Round))
+        drawPath(path, Brush.linearGradient(listOf(Color(0xFFF472B6), Color(0xFF22D3EE), Palette.tint(Color(0xFFFBBF24)))), style = Stroke(12f, cap = StrokeCap.Round))
     }
 }
 
@@ -337,7 +337,7 @@ private fun Bar(label: String, f: Float, value: String, c: Color) {
     val a by animateFloatAsState(f, tween(400), label = "bar$label")
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, color = Palette.text, fontSize = 12.sp, modifier = Modifier.width(78.dp), maxLines = 1)
-        Box(Modifier.weight(1f).height(12.dp).clip(RoundedCornerShape(6.dp)).background(Color.White.copy(alpha = 0.06f))) {
+        Box(Modifier.weight(1f).height(12.dp).clip(RoundedCornerShape(6.dp)).background(Palette.ink.copy(alpha = 0.06f))) {
             Box(Modifier.fillMaxWidth(a).height(12.dp).clip(RoundedCornerShape(6.dp)).background(Brush.horizontalGradient(listOf(c.copy(alpha = 0.5f), c))))
         }
         Text(value, color = Palette.muted, fontSize = 11.sp, modifier = Modifier.width(52.dp).padding(start = 6.dp), maxLines = 1)
@@ -407,7 +407,7 @@ private fun BodyCard(p: SeenPose?, reps: Int) {
 
 @Composable
 private fun Stat(icon: String, value: String, label: String, modifier: Modifier) {
-    Column(modifier.clip(RoundedCornerShape(16.dp)).background(Color.White.copy(alpha = 0.05f)).padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(modifier.clip(RoundedCornerShape(16.dp)).background(Palette.ink.copy(alpha = 0.05f)).padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(icon, fontSize = 20.sp)
         Text(value, color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 20.sp)
         Text(label, color = Palette.muted, fontSize = 10.sp, maxLines = 1)

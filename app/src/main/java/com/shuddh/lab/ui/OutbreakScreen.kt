@@ -56,7 +56,7 @@ import com.shuddh.lab.core.OutbreakWatch.Symptom
 
 private val symColor = mapOf(
     Symptom.DIARRHOEA to Color(0xFFF97316), Symptom.VOMITING to Color(0xFFA78BFA),
-    Symptom.FEVER to Color(0xFFF43F5E), Symptom.JAUNDICE to Color(0xFFFDE047),
+    Symptom.FEVER to Color(0xFFF43F5E), Symptom.JAUNDICE to Palette.tint(Color(0xFFFDE047)),
 )
 
 /** Outbreak Watch — anonymous illness reports + unsafe-water reports → an early warning for the area, offline. */
@@ -110,7 +110,7 @@ fun OutbreakScreen(app: AppState) {
                 Symptom.entries.forEach { s ->
                     val on = s in picked
                     val c = symColor[s]!!
-                    Text("${s.emoji} ${s.label}", color = if (on) Color.Black else Palette.text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                    Text("${s.emoji} ${s.label}", color = if (on) Palette.on(c) else Palette.text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
                         modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) c else c.copy(alpha = 0.14f))
                             .clickable { if (on) picked.remove(s) else picked.add(s); Haptics.tick(ctx) }.padding(horizontal = 12.dp, vertical = 8.dp))
                 }
@@ -172,7 +172,7 @@ private fun StatusRadar(a: OutbreakWatch.Assessment, area: String) {
     val dots = remember(a.recentCases) { List(a.recentCases.coerceAtMost(24)) { Pair(Math.random().toFloat() * 6.283f, 0.25f + Math.random().toFloat() * 0.7f) } }
     Canvas(Modifier.fillMaxWidth().height(170.dp)) {
         val c = Offset(size.width / 2, size.height / 2); val r = size.minDimension / 2 - 6f
-        for (k in 1..3) drawCircle(Color.White.copy(alpha = 0.06f), r * k / 3, c, style = Stroke(2f))
+        for (k in 1..3) drawCircle(Palette.ink.copy(alpha = 0.06f), r * k / 3, c, style = Stroke(2f))
         for (k in 0 until 3) { val p = (t + k / 3f) % 1f; drawCircle(col.copy(alpha = (1 - p) * 0.45f), r * p, c, style = Stroke(5f)) }
         dots.forEach { (ang, d) -> drawCircle(col, 6f, Offset(c.x + kotlin.math.cos(ang) * r * d, c.y + kotlin.math.sin(ang) * r * d)) }
         drawCircle(Brush.radialGradient(listOf(col, col.copy(alpha = 0.1f)), c, 34f), 30f, c)
@@ -200,7 +200,7 @@ private fun EpiCurve(perDay: List<Pair<Long, Map<Symptom, Int>>>) {
                 }
             }
         }
-        drawLine(Color.White.copy(alpha = 0.2f), Offset(0f, size.height - 12f), Offset(size.width, size.height - 12f), 2f)
+        drawLine(Palette.ink.copy(alpha = 0.2f), Offset(0f, size.height - 12f), Offset(size.width, size.height - 12f), 2f)
     }
     Row { Text("2 weeks ago", color = Palette.muted, fontSize = 10.sp, modifier = Modifier.weight(1f)); Text("today", color = Palette.muted, fontSize = 10.sp) }
 }

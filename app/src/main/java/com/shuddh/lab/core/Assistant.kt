@@ -13,6 +13,10 @@ object Assistant {
     private fun has(q: String, vararg words: String) = words.any { q.contains(it) }
 
     internal val facts = listOf(
+        listOf("wax", "polish", "waxed", "shiny apple") to Txt(
+            "Fruit wax: food-grade waxes (carnauba, shellac, beeswax) are allowed in India only when labelled. Petroleum or mineral-oil wax is not food-grade — it can upset digestion and seals pesticide residue onto the peel. Rinse in warm water and rub, soak in baking-soda water, or peel. Use Fruit Shine Check to test with the flash.",
+            "फलों पर वैक्स: खाद्य-ग्रेड वैक्स केवल लेबल के साथ अनुमत है। पेट्रोलियम वैक्स पाचन बिगाड़ सकता है और कीटनाशक को छिलके पर सील कर देता है। गुनगुने पानी में रगड़कर धोएँ या छिलका उतारें।",
+        ),
         listOf("nitrate", "नाइट्रेट") to Txt(
             "Nitrate above 45 mg/L (BIS) can cause 'blue baby syndrome' in infants because it reduces the blood's ability to carry oxygen. Boiling does NOT remove it — it concentrates it. Use RO or another source for infant formula.",
             "45 mg/L से ज़्यादा नाइट्रेट शिशुओं में 'ब्लू बेबी सिंड्रोम' कर सकता है। उबालने से नाइट्रेट नहीं हटता, बल्कि बढ़ता है। शिशु के दूध के लिए RO या दूसरा स्रोत इस्तेमाल करें।",

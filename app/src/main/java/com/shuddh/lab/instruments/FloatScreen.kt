@@ -113,7 +113,7 @@ private fun LactometerAnim(lr: Double, water: Double) {
         val w = size.width; val h = size.height
         val gx = w / 2 - 70f; val gw = 140f; val top = 20f; val milkTop = h * 0.3f
         // Glass
-        drawRoundRect(Color.White.copy(alpha = 0.08f), androidx.compose.ui.geometry.Offset(gx, top), androidx.compose.ui.geometry.Size(gw, h - top - 6f), androidx.compose.ui.geometry.CornerRadius(18f))
+        drawRoundRect(Palette.ink.copy(alpha = 0.08f), androidx.compose.ui.geometry.Offset(gx, top), androidx.compose.ui.geometry.Size(gw, h - top - 6f), androidx.compose.ui.geometry.CornerRadius(18f))
         // Milk (bluish-white as water is added)
         val milk = Color(0xFFFFFBF0).copy(alpha = 0.9f - 0.35f * thin)
         drawRoundRect(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(milk, Color(0xFFDDE7F5).copy(alpha = 0.7f)), milkTop, h), androidx.compose.ui.geometry.Offset(gx + 4f, milkTop + bob * 2f), androidx.compose.ui.geometry.Size(gw - 8f, h - milkTop - 12f), androidx.compose.ui.geometry.CornerRadius(14f))

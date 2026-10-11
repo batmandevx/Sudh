@@ -69,10 +69,11 @@ fun Aurora(modifier: Modifier = Modifier, intensity: Float = 1f) {
     val t = rememberInfiniteTransition(label = "aurora")
     val anim by t.animateFloat(0f, (2 * PI).toFloat(), infiniteRepeatable(tween(18000, easing = LinearEasing)), label = "a")
     val a = if (UiPrefs.reduceMotion) 0.8f else anim
+    val k = if (UiPrefs.light) intensity * 0.35f else intensity
     Canvas(modifier.fillMaxSize()) {
         val w = size.width; val h = size.height
         fun blob(cx: Float, cy: Float, r: Float, c: Color) = drawCircle(
-            Brush.radialGradient(listOf(c.copy(alpha = 0.22f * intensity), Color.Transparent), Offset(cx, cy), r), r, Offset(cx, cy),
+            Brush.radialGradient(listOf(c.copy(alpha = 0.22f * k), Color.Transparent), Offset(cx, cy), r), r, Offset(cx, cy),
         )
         blob(w * (0.2f + 0.15f * cos(a)), h * (0.12f + 0.05f * sin(a)), w * 0.75f, Color(0xFF8B5CF6))
         blob(w * (0.85f + 0.1f * sin(a * 1.3f)), h * (0.3f + 0.08f * cos(a)), w * 0.7f, Color(0xFF22D3EE))
@@ -119,7 +120,7 @@ fun SpectrumOrb(score: Int?, size: Dp = 150.dp, caption: String) {
             val sweep = Brush.sweepGradient(SpectrumColors + SpectrumColors.first())
             drawCircle(Brush.radialGradient(listOf(Color(0xFF34D399).copy(alpha = glow * 0.35f), Color.Transparent)), this.size.minDimension / 1.6f)
             rotate(rot) { drawCircle(sweep, this.size.minDimension / 2 - stroke, style = Stroke(stroke * 0.35f)) }
-            drawArc(Color.White.copy(alpha = 0.08f), 0f, 360f, false, Offset(stroke * 1.6f, stroke * 1.6f),
+            drawArc(Palette.ink.copy(alpha = 0.08f), 0f, 360f, false, Offset(stroke * 1.6f, stroke * 1.6f),
                 Size(this.size.width - stroke * 3.2f, this.size.height - stroke * 3.2f), style = Stroke(stroke))
             rotate(-90f) {
                 drawArc(sweep, 0f, 360f * fill, false, Offset(stroke * 1.6f, stroke * 1.6f),
@@ -151,14 +152,14 @@ fun VerdictGauge(level: Level, modifier: Modifier = Modifier) {
         val gradient = Brush.sweepGradient(
             0f to Color(0xFFF43F5E), 0.5f to Color(0xFF34D399), 0.75f to Color(0xFFFBBF24), 0.999f to Color(0xFFF43F5E), center = c,
         )
-        drawArc(Color.White.copy(alpha = 0.06f), 180f, 180f, false, arcTopLeft, Size(r * 2, r * 2), style = Stroke(stroke, cap = StrokeCap.Round))
+        drawArc(Palette.ink.copy(alpha = 0.06f), 180f, 180f, false, arcTopLeft, Size(r * 2, r * 2), style = Stroke(stroke, cap = StrokeCap.Round))
         if (level != Level.INCONCLUSIVE) {
             drawArc(gradient, 180f, 180f, false, arcTopLeft, Size(r * 2, r * 2), style = Stroke(stroke, cap = StrokeCap.Round))
         }
         val ang = PI + PI * anim.value
         val tip = Offset(c.x + (r * 0.82f) * cos(ang).toFloat(), c.y + (r * 0.82f) * sin(ang).toFloat())
-        drawLine(Color.White, c, tip, stroke * 0.28f, StrokeCap.Round)
-        drawCircle(Color.White, stroke * 0.45f, c)
+        drawLine(Palette.ink, c, tip, stroke * 0.28f, StrokeCap.Round)
+        drawCircle(Palette.ink, stroke * 0.45f, c)
         drawCircle(Color(level.argb), stroke * 0.25f, c)
     }
 }
@@ -175,7 +176,7 @@ fun Donut(safe: Int, caution: Int, unsafe: Int, modifier: Modifier = Modifier.si
             val stroke = size.minDimension * 0.13f
             val tl = Offset(stroke / 2, stroke / 2)
             val sz = Size(size.width - stroke, size.height - stroke)
-            drawArc(Color.White.copy(alpha = 0.06f), 0f, 360f, false, tl, sz, style = Stroke(stroke))
+            drawArc(Palette.ink.copy(alpha = 0.06f), 0f, 360f, false, tl, sz, style = Stroke(stroke))
             var start = -90f
             listOf(safe to Palette.accent, caution to Palette.amber, unsafe to Palette.red).forEach { (n, c) ->
                 val sweep = 360f * n / total * p
@@ -240,7 +241,7 @@ private fun DrawScope.drawGlyph(g: Glyph, color: Color, p: Float) {
             }
         }
         Glyph.SCATTER -> {
-            drawLine(Color.White.copy(alpha = 0.25f), Offset(0f, c.y), Offset(w, c.y), h * 0.22f)
+            drawLine(Palette.ink.copy(alpha = 0.25f), Offset(0f, c.y), Offset(w, c.y), h * 0.22f)
             for (i in 0 until 9) {
                 val x = ((i * 0.13f + p) % 1f) * w
                 val y = c.y + sin((i * 1.7f + p * 6f)) * h * 0.28f
@@ -336,9 +337,9 @@ fun RadarChart(labels: List<String>, values: List<Float?>, modifier: Modifier = 
         }
         for (k in 1..4) {
             val ring = Path().apply { for (i in 0 until n) { val p = pt(i, k / 4f); if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y) }; close() }
-            drawPath(ring, Color.White.copy(alpha = 0.07f), style = Stroke(2f))
+            drawPath(ring, Palette.ink.copy(alpha = 0.07f), style = Stroke(2f))
         }
-        for (i in 0 until n) drawLine(Color.White.copy(alpha = 0.07f), center, pt(i, 1f))
+        for (i in 0 until n) drawLine(Palette.ink.copy(alpha = 0.07f), center, pt(i, 1f))
         val poly = Path().apply {
             for (i in 0 until n) { val p = pt(i, (values[i] ?: 0f) * grow.value); if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y) }
             close()
@@ -374,7 +375,7 @@ fun ActivityBars(days: List<Triple<Int, Int, Int>>, modifier: Modifier = Modifie
                     top -= h
                 }
             }
-            if (s + c + u == 0) drawRoundRect(Color.White.copy(alpha = 0.06f), Offset(i * bw + 3f, size.height - 6f), Size(bw - 6f, 6f), CornerRadius(3f))
+            if (s + c + u == 0) drawRoundRect(Palette.ink.copy(alpha = 0.06f), Offset(i * bw + 3f, size.height - 6f), Size(bw - 6f, 6f), CornerRadius(3f))
         }
     }
 }
@@ -430,7 +431,7 @@ fun Wordmark(size: Int = 34) {
         Text(
             "shuddh",
             style = androidx.compose.ui.text.TextStyle(
-                brush = Brush.linearGradient(listOf(Color(0xFFEFF4FA), Color(0xFF8EF0C8), Color(0xFF7DD3FC))),
+                brush = Brush.linearGradient(if (UiPrefs.light) listOf(Color(0xFF0F172A), Color(0xFF047857), Color(0xFF0369A1)) else listOf(Color(0xFFEFF4FA), Color(0xFF8EF0C8), Color(0xFF7DD3FC))),
                 fontSize = size.sp, fontWeight = FontWeight.Black, fontFamily = Display, letterSpacing = (-1.2).sp,
             ),
         )
@@ -458,7 +459,7 @@ fun SlideToConfirm(label: String, modifier: Modifier = Modifier, confirmedLabel:
     Box(
         modifier.fillMaxWidth().height(thumb + 8.dp)
             .clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
-            .background(Color(0x22FFFFFF))
+            .background(Palette.veil(0x22))
             .onSizeChangedPx { trackW = it }
             .padding(4.dp),
         contentAlignment = Alignment.CenterStart,
@@ -504,7 +505,7 @@ fun SlideToConfirm(label: String, modifier: Modifier = Modifier, confirmedLabel:
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Text(if (done) "✓" else "›››", color = Color(0xFF032016), fontSize = 18.sp, fontWeight = FontWeight.Black)
+            Text(if (done) "✓" else "›››", color = Palette.onAccent, fontSize = 18.sp, fontWeight = FontWeight.Black)
         }
     }
 }

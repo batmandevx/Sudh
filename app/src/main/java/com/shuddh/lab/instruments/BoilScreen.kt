@@ -280,7 +280,7 @@ private fun SafeRing(boiled: Int, safe: Int, stage: Stage, done: Boolean, modifi
         Canvas(Modifier.size(150.dp)) {
             val st = 16f
             val tl = Offset(st, st); val sz = Size(size.width - 2 * st, size.height - 2 * st)
-            drawArc(Color.White.copy(alpha = 0.07f), 0f, 360f, false, tl, sz, style = Stroke(st))
+            drawArc(Palette.ink.copy(alpha = 0.07f), 0f, 360f, false, tl, sz, style = Stroke(st))
             drawArc(Brush.sweepGradient(listOf(Palette.amber, Palette.accent, Palette.amber)), -90f, 360f * f, false, tl, sz, style = Stroke(st, cap = StrokeCap.Round))
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -298,7 +298,7 @@ private fun StageTrack(stage: Stage, running: Boolean) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         steps.forEachIndexed { i, s ->
             val on = running && i <= idx
-            val c = if (on) (if (s == Stage.BOILING) Palette.amber else Palette.cyan) else Color.White.copy(alpha = 0.1f)
+            val c = if (on) (if (s == Stage.BOILING) Palette.amber else Palette.cyan) else Palette.ink.copy(alpha = 0.1f)
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(c))
                 Text("${s.emoji} ${s.label.substringBefore(" —")}", color = if (on) Palette.text else Palette.muted, fontSize = 10.sp, maxLines = 1)
@@ -321,7 +321,7 @@ private fun LevelChart(levels: List<Float>) {
 
 @Composable
 private fun Stat3(icon: String, v: String, label: String, modifier: Modifier) {
-    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.05f)).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Palette.ink.copy(alpha = 0.05f)).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(icon, fontSize = 18.sp)
         Text(v, color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 15.sp, maxLines = 1)
         Text(label, color = Palette.muted, fontSize = 10.sp, maxLines = 1)
