@@ -82,7 +82,7 @@ private enum class Liquid(val label: String, val emoji: String, val color: Long,
 }
 
 private enum class Check(val label: String, val emoji: String, val sub: String, val needs: String) {
-    SENSOR("Water & adulteration", "💧", "Colour spectrum + echo + magnetometer → % water and a verdict", "Nothing — a white cap and paper"),
+    SENSOR("Water & adulteration", "💧", "Colour spectrum + echo + magnetometer → % water and a verdict", "A dark bottle cap and white paper"),
     DETERGENT("Detergent test", "🫧", "Camera times how long the foam stands after shaking", "A clear bottle"),
     STARCH("Starch test", "🌾", "Camera reads the iodine colour change", "2–3 drops iodine tincture (chemist)"),
     OIL_REUSE("Frying-oil reuse", "🍳", "How many times this oil has been heated", "Nothing"),
@@ -269,7 +269,7 @@ private fun Intro(c: Check, l: Liquid, m: MilkType, onStart: () -> Unit) {
         when (c) {
             Check.SENSOR, Check.OIL_REUSE -> {
                 Box(Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(18.dp)).background(Color(0xFF0B1220))) { ScatterScene(Modifier.fillMaxSize()) }
-                Fact("🌈", "Light", "Fat and protein globules scatter light. Pure milk is packed with them → bright white. Every bit of added water means fewer globules → darker and slightly bluish. The camera measures this under several colours of light.")
+                Fact("🌈", "Light", "Fat and protein globules scatter light. In a thin layer, pure milk is packed with them and hides the dark cap → bright white. Added water means fewer globules, so light reaches the dark cap and is absorbed → the layer looks greyer. The camera measures this under several colours of light.")
                 Fact("🔊", "Echo", "The speaker sweeps 2–18 kHz tones at the sample. Thicker, creamier liquid reflects them differently from thin, watered liquid — the microphone hears the difference.")
                 Fact("🧲", "Magnetometer", "Iron or steel particles bend the phone's magnetic field reading — a quick check for metal contamination.")
                 Fact("🧠", "Verdict", "All readings are matched against the samples you trained (pure, water, 50/50…) to give a kind, a % water range and how sure it is.")
@@ -291,9 +291,9 @@ private fun Intro(c: Check, l: Liquid, m: MilkType, onStart: () -> Unit) {
 
 private fun steps(c: Check, subject: String) = when (c) {
     Check.SENSOR, Check.OIL_REUSE -> listOf(
-        "Fill a white bottle cap to the brim with the $subject.",
-        "Put it on a sheet of white paper — paper in the white box, cap in the blue box on screen.",
-        "Hold the phone flat about 15 cm above, in steady room light. Wait for the aim ring to show ✓.",
+        "Pour a THIN layer (1–2 mm, just covering the bottom) of the $subject into a DARK bottle cap (black, blue or red). A thin layer is what lets the camera see added water.",
+        "Put it on a sheet of white paper in even light — paper in the white box, cap in the blue box on screen. No shadow on the paper.",
+        "Hold the phone flat about 15 cm above — the same height you trained at — in steady light. Wait for the aim ring to show ✓.",
         "Tap Run test and keep still for ~25 s: spectrum → echo → metal check → verdict.",
     )
     Check.DETERGENT -> listOf(
@@ -337,8 +337,8 @@ private fun SetupScene(modifier: Modifier) {
         val w = size.width; val h = size.height
         // Paper and cap
         drawRoundRect(Color.White, Offset(w * 0.18f, h * 0.74f), Size(w * 0.64f, h * 0.16f), CornerRadius(6f))
-        drawOval(Color(0xFFE2E8F0), Offset(w * 0.55f, h * 0.72f), Size(w * 0.16f, h * 0.09f))
-        drawOval(Color(0xFFF8FAFC), Offset(w * 0.565f, h * 0.73f), Size(w * 0.13f, h * 0.06f))
+        drawOval(Color(0xFF1E3A8A), Offset(w * 0.55f, h * 0.72f), Size(w * 0.16f, h * 0.09f))       // dark (blue) cap
+        drawOval(Color(0xFFF8FAFC), Offset(w * 0.565f, h * 0.73f), Size(w * 0.13f, h * 0.06f))      // milk inside
         // Phone hovering
         val py = h * 0.12f + hover
         drawRoundRect(Color(0xFF1E293B), Offset(w * 0.3f, py), Size(w * 0.4f, h * 0.1f), CornerRadius(10f))
@@ -356,7 +356,7 @@ private fun SetupScene(modifier: Modifier) {
     Box(modifier.padding(10.dp)) {
         Text("≈15 cm", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.CenterEnd))
         Text("white paper", color = Color(0xFF94A3B8), fontSize = 10.sp, modifier = Modifier.align(Alignment.BottomStart))
-        Text("cap, full", color = Color(0xFF94A3B8), fontSize = 10.sp, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 40.dp))
+        Text("dark cap, full", color = Color(0xFF94A3B8), fontSize = 10.sp, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 40.dp))
     }
 }
 

@@ -98,8 +98,10 @@ class MainActivity : ComponentActivity() {
         if (intent?.getBooleanExtra("ringinfo", false) == true) com.shuddh.lab.core.BackLight.probe().lines().forEach { android.util.Log.w("RingInfo", it) }
         // Debug hook: --es backlight "ff0000:500:0" (rgb:type:preview) → lights the vivo back ring and logs the result.
         intent?.getStringExtra("say")?.let { app.voice.speak(it, app.lang) }
-        // Developer test fixture: --ez purity_fixture true → next 5 Purity runs show the scripted results, badged TEST DATA.
-        if (intent?.getBooleanExtra("purity_fixture", false) == true) app.prefs.putJson("purity_fixture", org.json.JSONObject().put("left", 5))
+        // Developer test fixture: --ez purity_fixture true → next 5 Purity runs show the scripted results, badged TEST DATA;
+        // --ez purity_fixture false switches it off.
+        if (intent?.hasExtra("purity_fixture") == true)
+            app.prefs.putJson("purity_fixture", org.json.JSONObject().put("left", if (intent.getBooleanExtra("purity_fixture", false)) 5 else 0))
         // Debug hook: --es gamelight "colorIdx:id:type:subtype:times"
         intent?.getStringExtra("gamelight")?.let { g -> val v = g.split(":").map { it.toIntOrNull() ?: 0 }
             com.shuddh.lab.core.BackLight.setGame(this, v.getOrElse(0) { 0 }, v.getOrElse(1) { 1001 }, v.getOrElse(2) { 1 }, v.getOrElse(3) { 0 }, v.getOrElse(4) { 0 }) }

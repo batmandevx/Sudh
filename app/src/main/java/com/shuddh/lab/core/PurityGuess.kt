@@ -53,7 +53,7 @@ object PurityGuess {
         val yellow = (r - b) / mean.coerceAtLeast(0.05)
         val tex = f["tex"] ?: 0.0
         return when {
-            mean < 0.12 -> Guess(Kind.WATER, 100.0, 5.0, 70.0, "Almost no light scattered back — a clear liquid like water, not milk.")
+            mean < 0.18 -> Guess(Kind.WATER, 100.0, 5.0, 72.0, "Almost no light scattered back — a clear liquid like water, no milk found.")
             yellow > 0.75 -> Guess(Kind.NOT_MILK, null, 0.0, 65.0, "Strongly coloured (red ≫ blue) — honey, juice or oil, not milk.")
             yellow > 0.25 && tex > 0.05 -> Guess(Kind.SPOILED, null, 0.0, 62.0, "Yellowish and uneven surface — the pattern of souring, curdling milk.")
             else -> {
@@ -63,7 +63,7 @@ object PurityGuess {
                 // Spread: ±0.03 reflectance (positioning, light) mapped through the curve.
                 val lo = waterFrom(mean + 0.03, fatPct); val hi = waterFrom(mean - 0.03, fatPct)
                 val spread = ((hi - lo) / 2).coerceIn(4.0, 25.0)
-                val kind = if (w >= 10) Kind.WATERED_MILK else Kind.MILK
+                val kind = when { w >= 90 -> Kind.WATER; w >= 10 -> Kind.WATERED_MILK; else -> Kind.MILK }
                 val conf = (75 - spread).coerceIn(40.0, 70.0) - (if (src == "amb") 10 else 0)
                 Guess(kind, w, spread, conf, "Reflectance ${"%.2f".format(mean)} vs ${"%.2f".format(reflFrom(0.0, fatPct))} for pure ${if (fatPct >= 5) "full-cream" else if (fatPct <= 2) "low-fat" else "toned"} milk — fewer fat/protein globules scatter less light." +
                     if (tex > 0.05) " Surface is a little uneven — check freshness." else "")

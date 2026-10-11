@@ -55,10 +55,48 @@ object PurityTrain {
         return null
     }
 
+    /**
+     * Aiming errors that make a reading physically impossible: the sample box sees the paper, or the
+     * sample reads brighter than the white paper (boxes swapped, paper in shadow, or a white cap).
+     * Such captures are never saved as training and never get a verdict.
+     */
+    /**
+     * The room-light reading is easily spoiled by the phone's own shadow on the paper (paper darker → sample
+     * reads > 1). The torch reading subtracts room light, so shadows cancel. If the torch reading is sane but
+     * the room-light one isn't, drop only the room-light features.
+     */
+    fun clean(f: Map<String, Double>): Map<String, Double> {
+        val fl = listOf("flash_r", "flash_g", "flash_b").mapNotNull { f[it] }
+        val amb = listOf("amb_r", "amb_g", "amb_b").mapNotNull { f[it] }
+        val flashOk = fl.size == 3 && fl.average() in -0.2..1.45 && fl.all { it <= 1.6 }
+        val ambBad = amb.isNotEmpty() && (amb.average() > 1.08 || amb.any { it > 1.3 })
+        return if (flashOk && ambBad) f.filterKeys { !it.startsWith("amb_") } else f
+    }
+
+    /**
+     * [labelId] = the kind being trained (null for a test). Milk reflects almost like paper and the torch beam is
+     * brightest at the cap, so milk may legitimately read up to ~1.4× the paper; water must read dark in a dark
+     * cap; honey and juice must show colour.
+     */
+    fun aimProblem(f0: Map<String, Double>, labelId: String? = null): String? {
+        val f = clean(f0)
+        val flash = listOf("flash_r", "flash_g", "flash_b").mapNotNull { f[it] }
+        val amb = listOf("amb_r", "amb_g", "amb_b").mapNotNull { f[it] }
+        val v = if (flash.size == 3) flash else amb
+        if (v.size < 3) return "The camera couldn't read the sample — more light, and keep the paper and cap inside their boxes."
+        val avg = v.average()
+        if (flash.size < 3 && avg > 1.08) return "Only a room-light reading, and the paper is in shadow — keep the light beside you, not behind the phone, and hold steady so the torch reading works."
+        if (avg > 1.45 || v.any { it > 1.6 }) return "The sample reads far brighter than the white paper — white paper in the white box, sample in the blue box."
+        if (labelId == "water" && avg > 0.5) return "Water should look dark — use a DARK cap (black, blue or red), and make sure the blue box is on the cap, not the paper."
+        if ((labelId == "honey" || labelId == "juice") && (v.max() - v.min()) < 0.08 * avg.coerceAtLeast(0.1) && avg > 0.6)
+            return "This looks plain white, not ${labelId} — the blue box is probably on the paper. Move so the cap fills it."
+        return null
+    }
+
     fun classify(test: Map<String, Double>, samples0: List<Sample>): Result? {
-        // Samples captured with a broken setup (cap brighter than the paper) are ignored.
-        val samples = samples0.filter { usable(it.f) }
-        val tf = classFeatures(test)
+        // Samples captured with an aiming error are ignored — they would poison every match.
+        val samples = samples0.filter { usable(it.f) && aimProblem(it.f, it.label) == null }.map { it.copy(f = clean(it.f)) }
+        val tf = classFeatures(clean(test))
         val byLabel = samples.groupBy { it.label }
         if (byLabel.size < 2) return null
         // Features the test has and at least 70 % of the samples have (missing ones are skipped per sample).
@@ -70,10 +108,12 @@ object PurityTrain {
             val dof = (dev.size - byLabel.size).coerceAtLeast(1)
             maxOf(sqrt(dev.sumOf { it * it } / dof), floor(k))
         }
+        // A kind missing a compared feature can't be judged on it: each missing feature counts as 4σ away,
+        // so a kind measured only on texture can never win on texture alone.
         fun d2(f: Map<String, Double?>): Double {
             val used = keys.filter { f[it] != null }
             if (used.isEmpty()) return 1e9
-            return used.sumOf { k -> ((tf[k]!! - f[k]!!) / sd[k]!!).let { it * it } } / used.size
+            return (used.sumOf { k -> ((tf[k]!! - f[k]!!) / sd[k]!!).let { it * it } } + 16.0 * (keys.size - used.size)) / keys.size
         }
         val d = cent.mapValues { (_, c) -> d2(c) }
         val m = d.values.min()

@@ -310,7 +310,17 @@ fun PurityTest(app: AppState, subject: String? = null, fatPct: Double = 3.0, onE
             return grab(n)
         }
         cam.lock(false); cam.torch(true); delay(1000); cam.lock(true); delay(300)
-        val on = steadyGrab(18)
+        var on = steadyGrab(18)
+        // Bright milk can clip under the torch: retake once a stop darker so the torch reading isn't lost.
+        if (on != null && Rgb.average(on.map { it.second }).saturated > 0.02) {
+            val st = cam.camera?.cameraInfo?.exposureState
+            if (st != null && st.isExposureCompensationSupported) {
+                cam.lock(false); cam.exposure((ev - (1.0 / st.exposureCompensationStep.toDouble()).roundToInt()).coerceIn(st.exposureCompensationRange.lower, st.exposureCompensationRange.upper))
+                delay(700); cam.lock(true); delay(300)
+                on = steadyGrab(18)
+                android.util.Log.w("PurityDump", "torch frames clipped — retook 1 EV darker")
+            }
+        }
         cam.torch(false); delay(600)
         val off1 = steadyGrab(18)
         delay(250)
@@ -433,11 +443,15 @@ fun PurityTest(app: AppState, subject: String? = null, fatPct: Double = 3.0, onE
             val sh = shootUp()
             val f = sh?.let { features(it, stage) }.orEmpty()
             if (sh == null || !PurityTrain.usable(f)) { busy = null; status = "Not saved: the camera got no reading — hold the phone steady ~15 cm over the cap."; app.voice.say("Not saved.", app.lang); Haptics.thud(ctx); return@launch }
+            PurityTrain.aimProblem(f, lb.id)?.let { why ->
+                busy = null; status = "Not saved — $why"; app.voice.say("Not saved. Fix the aim and try again.", app.lang); Haptics.thud(ctx)
+                android.util.Log.w("PurityDump", "TRAIN REJECTED ${lb.id}: $why | " + f.entries.sortedBy { it.key }.joinToString(" ") { "${it.key}=${String.format(java.util.Locale.US, "%.3f", it.value)}" }); return@launch
+            }
             val warn = PurityTrain.captureProblem(f)
             val id = "${lb.id}_${System.currentTimeMillis()}"
             val img = photo(id)
             busy = null
-            val list = samples + PurityTrain.Sample(id, lb.id, System.currentTimeMillis(), f, img)
+            val list = samples + PurityTrain.Sample(id, lb.id, System.currentTimeMillis(), PurityTrain.clean(f), img)
             store = JSONObject(store.toString()).put("s", PurityTrain.save(list).getJSONArray("s")); app.prefs.putJson("purity_train", store)
             status = (warn?.let { "Saved, but check: $it  " } ?: "") + "${lb.emoji} ${lb.title} saved (${list.count { it.label == lb.id }} sample${if (list.count { it.label == lb.id } > 1) "s" else ""})."
             Haptics.click(ctx); app.voice.say("${lb.title} saved.", app.lang)
@@ -470,18 +484,50 @@ fun PurityTest(app: AppState, subject: String? = null, fatPct: Double = 3.0, onE
                 android.util.Log.w("PurityDump", "NO READING: $status"); app.voice.say("No reading. Try again.", app.lang); Haptics.thud(ctx); return@launch
             }
             sh.notes.forEach { (t, ok) -> qc[t] = ok }
+            // An impossible reading (sample brighter than paper, box on paper) gets "retake", never a verdict.
+            PurityTrain.aimProblem(f)?.let { why ->
+                busy = null; phase = null; status = "Retake — $why"
+                android.util.Log.w("PurityDump", "AIM PROBLEM: $why"); app.voice.say("Retake. The aim was wrong.", app.lang); Haptics.thud(ctx); return@launch
+            }
             val warning = PurityTrain.captureProblem(f)
             val usable = samples.filter { PurityTrain.usable(it.f) }.map { it.label }.distinct()
             val r = PurityTrain.classify(f, samples)
             if (r == null || usable.size < 2) {
                 // No usable training yet: educated guess from the phone's light-scattering calibration.
-                val g = com.shuddh.lab.core.PurityGuess.guess(f, fatPct)
+                val g0 = com.shuddh.lab.core.PurityGuess.guess(f, fatPct)
+                // The AI checks the physics estimate independently (numbers + photo description).
+                var gop: PurityAi.Opinion? = null
+                if (app.llm.hasChat() && !app.llm.busy) {
+                    busy = "Double-checking…"
+                    val photoLabels = snap[0]?.let { b -> withTimeoutOrNull(4000) { runCatching { com.shuddh.lab.core.Vision.analyse(b).labels }.getOrNull() } }.orEmpty()
+                    val prompt = com.shuddh.lab.core.purityGuessPrompt(f, com.shuddh.lab.core.SamplePhoto.describe(photoLabels, f), g0)
+                    val job = scope.async(Dispatchers.Default) { runCatching { app.llm.generate(app.llm.chatRole(longForm = false), prompt) }.getOrNull() }
+                    gop = withTimeoutOrNull(20_000) { job.await() }?.let { PurityAi.parse(it, emptyList()) }
+                }
+                val fz = com.shuddh.lab.core.PurityFusion.fuse(listOf(
+                    com.shuddh.lab.core.PurityFusion.Vote("physics", com.shuddh.lab.core.PurityFusion.famOfGuess(g0.kind), g0.confidence / 100 * 0.8),
+                    com.shuddh.lab.core.PurityFusion.famOfAi(gop)?.let { com.shuddh.lab.core.PurityFusion.Vote("AI", it, (gop?.confidence ?: 60.0) / 100 * 0.7) },
+                ), listOfNotNull(g0.waterPct?.let { it to 0.7 }, gop?.waterPct?.let { it to 0.3 }))
+                android.util.Log.w("PurityDump", "GUESS-FUSE ${fz.note} → ${fz.fam} ${fz.confidence.toInt()}% water=${fz.water} ai=${gop?.raw?.take(160)}")
+                // Fused kind → the guess shown; disagreement → unclear.
+                val g = when {
+                    fz.unsure -> g0.copy(kind = com.shuddh.lab.core.PurityGuess.Kind.UNCLEAR, confidence = fz.confidence, why = "Physics and AI disagree (${fz.note}) — retake in steady light.")
+                    else -> {
+                        val k = when (fz.fam) {
+                            com.shuddh.lab.core.PurityFusion.Fam.WATER -> com.shuddh.lab.core.PurityGuess.Kind.WATER; com.shuddh.lab.core.PurityFusion.Fam.MILK -> com.shuddh.lab.core.PurityGuess.Kind.MILK
+                            com.shuddh.lab.core.PurityFusion.Fam.WATERED -> com.shuddh.lab.core.PurityGuess.Kind.WATERED_MILK; com.shuddh.lab.core.PurityFusion.Fam.SPOILED -> com.shuddh.lab.core.PurityGuess.Kind.SPOILED
+                            com.shuddh.lab.core.PurityFusion.Fam.NOT_MILK -> com.shuddh.lab.core.PurityGuess.Kind.NOT_MILK; else -> com.shuddh.lab.core.PurityGuess.Kind.UNCLEAR
+                        }
+                        val w = if (k == com.shuddh.lab.core.PurityGuess.Kind.WATERED_MILK) (fz.water ?: g0.waterPct ?: 50.0) else g0.waterPct
+                        g0.copy(kind = k, waterPct = w, confidence = maxOf(g0.confidence, fz.confidence).coerceAtMost(90.0))
+                    }
+                }
                 fun lb(id: String) = labels.first { it.id == id }
                 val (label, id) = when (g.kind) {
                     com.shuddh.lab.core.PurityGuess.Kind.MILK -> lb("pure_milk") to "pure_milk"
                     com.shuddh.lab.core.PurityGuess.Kind.WATERED_MILK -> PurityTrain.Label("mix", "Milk with ${PurityTrain.range(g.waterPct!!, g.spread / 1.96).let { (a, b) -> "$a–$b" }}% water", "🥛", g.waterPct, false, "milk") to "mix"
                     com.shuddh.lab.core.PurityGuess.Kind.SPOILED -> lb("spoiled_milk") to "spoiled_milk"
-                    com.shuddh.lab.core.PurityGuess.Kind.WATER -> lb("water") to "water"
+                    com.shuddh.lab.core.PurityGuess.Kind.WATER -> lb("water").copy(title = "100% water — no milk found") to "water"
                     com.shuddh.lab.core.PurityGuess.Kind.NOT_MILK -> PurityTrain.Label("not_milk", "Not milk — coloured liquid", "🧃", null, false, "other") to "not_milk"
                     com.shuddh.lab.core.PurityGuess.Kind.UNCLEAR -> null to "unknown"
                 }
@@ -491,8 +537,8 @@ fun PurityTest(app: AppState, subject: String? = null, fatPct: Double = 3.0, onE
                     else -> emptyList()
                 } + "Detergent and starch don't change how milk looks — use the Detergent and Starch tests to rule them out."
                 busy = null
-                result = PurityOutcome(label, PurityTrain.Decision(id, g.confidence, null, false), PurityTrain.Result(emptyList(), null, emptyList()),
-                    g.waterPct?.let { it to g.spread / 1.96 }, null, img, g.safe, risks, f, "guess", warning ?: g.why)
+                result = PurityOutcome(label, PurityTrain.Decision(id, g.confidence, gop?.let { fz.agree >= 2 }, false), PurityTrain.Result(emptyList(), null, emptyList()),
+                    g.waterPct?.let { it to g.spread / 1.96 }, gop, img, g.safe, risks, f, "guess", warning ?: g.why)
                 android.util.Log.w("PurityDump", "GUESS kind=${g.kind} water=${g.waterPct} conf=${g.confidence}")
                 if (g.safe) Haptics.ping(ctx) else Haptics.rumble(ctx, 1f, 900)
                 app.voice.say("${g.title}." + (g.waterPct?.takeIf { g.kind == com.shuddh.lab.core.PurityGuess.Kind.WATERED_MILK }?.let { " About ${it.roundToInt()} percent water." } ?: ""), app.lang)
@@ -520,7 +566,7 @@ fun PurityTest(app: AppState, subject: String? = null, fatPct: Double = 3.0, onE
                 op = text?.let { PurityAi.parse(it, samples.map { s -> s.label }.distinct()) }
             }
             // The model's own water guess is a light reference on the sensor estimate.
-            val water = water0?.let { (com.shuddh.lab.core.SamplePhoto.blendWater(it.first, op?.waterPct) ?: it.first) to it.second }
+            val waterS = water0?.let { (com.shuddh.lab.core.SamplePhoto.blendWater(it.first, op?.waterPct) ?: it.first) to it.second }
             android.util.Log.w("PurityDump", "AI sample=${op?.sample} water=${op?.waterPct} conf=${op?.confidence} reason=${op?.reason}")
             // Cross-check with the physics guess: flag a big disagreement on water.
             val g = com.shuddh.lab.core.PurityGuess.guess(f, fatPct, op?.waterPct)
@@ -529,28 +575,57 @@ fun PurityTest(app: AppState, subject: String? = null, fatPct: Double = 3.0, onE
                 if (op?.sample == "adulterated" && (op.confidence ?: 0.0) >= 60) d.copy(confidence = d.confidence * 0.85) else d
             }
             // Milk–water mixes get a % range; far-from-everything is "unknown"; weak matches say "not sure".
-            val mode = when {
-                mix && water != null -> "mix"
+            val mode0 = when {
+                mix && waterS != null -> "mix"
                 // Far from everything trained: unknown, whatever the AI says.
                 unk -> "unknown"
                 // Borderline: the AI may only confirm when the match is reasonably close.
                 r.unsure && !(d0.aiAgrees == true && r.ranked.first().dist <= 3) -> "unsure"
                 else -> "class"
             }
-            val d = when (mode) {
+            val dS = when (mode0) {
                 "mix" -> d0.copy(label = "mix", confidence = Dart.confidence(minOf(fit!!.second.let { 3.0 - it }, 3.0), 1.0))
                 "unknown", "unsure" -> d0.copy(confidence = d0.confidence.coerceAtMost(50.0))
                 else -> d0
             }
-            val lb = when (mode) {
-                "mix" -> water!!.first.let { w -> when {
+            val lb0 = when (mode0) {
+                "mix" -> waterS!!.first.let { w -> when {
                     w >= 95 -> labels.first { it.id == "water" }
                     w <= 5 -> labels.first { it.id == "pure_milk" }
-                    else -> PurityTrain.Label("mix", "Milk with ${PurityTrain.range(w, water.second).let { (a, b) -> "$a–$b" }}% water", "🥛", w, w < 8, "milk")
+                    else -> PurityTrain.Label("mix", "Milk with ${PurityTrain.range(w, waterS.second).let { (a, b) -> "$a–$b" }}% water", "🥛", w, w < 8, "milk")
                 } }
-                "class" -> labels.firstOrNull { it.id == d.label }
+                "class" -> labels.firstOrNull { it.id == dS.label }
                 else -> null
             }
+            // ── Three-way vote: trained sensors, physics model, AI ──
+            val sensorFam = when (mode0) { "unknown" -> com.shuddh.lab.core.PurityFusion.Fam.UNKNOWN; else -> com.shuddh.lab.core.PurityFusion.famOfLabel(lb0?.id ?: r.ranked.first().label, lb0?.family ?: top?.family, waterS?.first) }
+            val sensorW = r.ranked.first().p * (if (mode0 == "unsure") 0.55 else 1.0)
+            val fz = com.shuddh.lab.core.PurityFusion.fuse(listOf(
+                sensorFam?.let { com.shuddh.lab.core.PurityFusion.Vote("sensors", it, sensorW) },
+                com.shuddh.lab.core.PurityFusion.Vote("physics", com.shuddh.lab.core.PurityFusion.famOfGuess(g.kind), g.confidence / 100 * 0.6),
+                com.shuddh.lab.core.PurityFusion.famOfAi(op)?.let { com.shuddh.lab.core.PurityFusion.Vote("AI", it, (op?.confidence ?: 60.0) / 100 * 0.6) },
+            ), listOfNotNull(water0?.first?.let { it to 0.5 }, g.waterPct?.takeIf { g.kind == com.shuddh.lab.core.PurityGuess.Kind.WATERED_MILK || g.kind == com.shuddh.lab.core.PurityGuess.Kind.MILK }?.let { it to 0.3 }, op?.waterPct?.let { it to 0.2 }))
+            android.util.Log.w("PurityDump", "FUSE ${fz.note} → ${fz.fam} ${fz.confidence.toInt()}% agree=${fz.agree} water=${fz.water}")
+            fun labelFor(fam: com.shuddh.lab.core.PurityFusion.Fam, w: Double?): PurityTrain.Label? = when (fam) {
+                com.shuddh.lab.core.PurityFusion.Fam.WATER -> labels.firstOrNull { it.id == "water" }
+                com.shuddh.lab.core.PurityFusion.Fam.MILK -> labels.firstOrNull { it.id == "pure_milk" }
+                com.shuddh.lab.core.PurityFusion.Fam.WATERED -> (w ?: 50.0).let { x -> PurityTrain.Label("mix", "Milk with ${PurityTrain.range(x, 6.0).let { (a, b) -> "$a–$b" }}% water", "🥛", x, x < 8, "milk") }
+                com.shuddh.lab.core.PurityFusion.Fam.SPOILED -> labels.firstOrNull { it.id == "spoiled_milk" }
+                com.shuddh.lab.core.PurityFusion.Fam.NOT_MILK -> r.ranked.mapNotNull { rk -> labels.firstOrNull { it.id == rk.label } }.firstOrNull { it.family == "honey" || it.family == "juice" } ?: PurityTrain.Label("not_milk", "Not milk — coloured liquid", "🧃", null, false, "other")
+                com.shuddh.lab.core.PurityFusion.Fam.ADULTERANT -> r.ranked.mapNotNull { rk -> labels.firstOrNull { it.id == rk.label } }.firstOrNull { it.family == "adulterant" } ?: PurityTrain.Label("adulterated", "Possibly adulterated milk", "⚠️", null, false, "adulterant")
+                com.shuddh.lab.core.PurityFusion.Fam.UNKNOWN -> null
+            }
+            val fusedWater = fz.water?.let { it to (waterS?.second ?: 3.0) }
+            val (mode, lbRaw, d) = when {
+                fz.unsure -> Triple("unsure", null, dS.copy(confidence = fz.confidence))
+                fz.fam == sensorFam && lb0 != null && mode0 != "unsure" -> Triple(mode0, lb0, dS.copy(confidence = if (fz.agree >= 2) maxOf(dS.confidence, fz.confidence) else dS.confidence))
+                fz.fam == com.shuddh.lab.core.PurityFusion.Fam.UNKNOWN -> Triple("unknown", null, dS.copy(confidence = fz.confidence))
+                // Physics + AI outvoted the trained match.
+                else -> labelFor(fz.fam!!, fusedWater?.first).let { l -> Triple(if (fz.fam == com.shuddh.lab.core.PurityFusion.Fam.WATERED) "mix" else "class", l, PurityTrain.Decision(l?.id ?: "unknown", fz.confidence, true, true)) }
+            }
+            val lb = lbRaw?.let { if (it.id == "water") it.copy(title = "100% water — no milk found") else it }
+            val water = if (lb?.id == "water") 100.0 to 0.5 else if (lb?.family == "milk" || mode == "mix") (fusedWater ?: waterS) else waterS
+            val fuseNote = if (fz.fam != sensorFam && !fz.unsure) "Cross-checked: ${fz.note}." else if (fz.unsure) "Sensors, physics and AI disagree (${fz.note}) — retake for a firm answer." else null
             val unsafeWater = (water?.first ?: 0.0) >= 8 && lb?.family == "milk" && lb.id != "water"
             val safe = mode != "unknown" && (lb?.safe ?: false) && !unsafeWater
             val risks = when {
@@ -571,7 +646,7 @@ fun PurityTest(app: AppState, subject: String? = null, fatPct: Double = 3.0, onE
             result = if (fx > 0) {
                 app.prefs.putJson("purity_fixture", JSONObject().put("left", fx - 1))
                 fixture(6 - fx, labels, r, img, f)
-            } else PurityOutcome(lb, if (warning != null) d.copy(confidence = d.confidence * 0.7) else d, r, water ?: waterAny?.takeIf { mode != "class" }, op, img, safe, risks, f, mode, warning ?: crossNote)
+            } else PurityOutcome(lb, if (warning != null) d.copy(confidence = d.confidence * 0.7) else d, r, water ?: waterAny?.takeIf { mode != "class" }, op, img, safe, risks, f, mode, warning ?: fuseNote ?: crossNote)
             android.util.Log.w("PurityDump", "RESULT mode=$mode label=${lb?.id} water=${water?.first} safe=$safe warning=$warning")
             if (safe) Haptics.ping(ctx) else Haptics.rumble(ctx, 1f, 900)
             app.voice.say(if (mode == "unknown") "Unknown sample. Don't consume it." else if (lb == null) "Not sure. Add more training samples, or check the setup." else "${lb.title}. ${if (safe) "Looks safe." else "Not safe."}" + (water?.let { " About ${it.first.roundToInt()} percent water." } ?: "") +
@@ -657,10 +732,11 @@ fun PurityTest(app: AppState, subject: String? = null, fatPct: Double = 3.0, onE
         qc.forEach { (t, ok) -> ev += Evidence("QUALITY", t, ok) }
         ev += if (o.mode == "guess") Evidence("CALIBRATION", "Educated guess — light-scattering curve calibrated on this phone (water, 50/50, pure milk); no training of your own yet", null)
             else Evidence("CALIBRATION", "Training: ${samples.size} samples across ${samples.map { it.label }.distinct().size} classes", samples.size >= 6)
-        val lv = if (o.safe) Level.SAFE else Level.UNSAFE
+        val isWater = o.label?.id == "water"
+        val lv = if (isWater) Level.CAUTION else if (o.safe) Level.SAFE else Level.UNSAFE
         return Outcome("Shuddh Purity", "purity_${o.decision.label}", Txt(title), o.water?.first ?: o.decision.confidence, if (o.water != null) "% water" else "% sure", lv,
             "$title · ${o.decision.confidence.toInt()}% sure" + (o.water?.let { " · ≈${it.first.roundToInt()}% water" } ?: ""), (listOf(if (o.safe) "Matches a safe sample you trained." else "Matches an unsafe sample, or has added water.") + o.risks).map { Txt(it) }, ev,
-            if (o.mode == "guess") "Educated guess from phone sensors — train your own samples for higher accuracy. Not a lab test." else "Phone-sensor classification against your own training samples. Not a lab test.", levelLabel = Txt(if (o.safe) "SAFE" else "NOT SAFE"))
+            if (o.mode == "guess") "Educated guess from phone sensors — train your own samples for higher accuracy. Not a lab test." else "Phone-sensor classification against your own training samples. Not a lab test.", levelLabel = Txt(if (isWater) "NO MILK" else if (o.safe) "SAFE" else "NOT SAFE"))
     }
 
     val classesTrained = samples.map { it.label }.distinct().size
@@ -687,7 +763,7 @@ fun PurityTest(app: AppState, subject: String? = null, fatPct: Double = 3.0, onE
                     r != null -> ResultCard(r, labels)
                     else -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(if (classesTrained >= 2) "Ready to test" else "Ready — educated-guess mode", color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 22.sp)
-                        Text(if (classesTrained >= 2) "$classesTrained kinds trained · ${samples.size} samples. Fill the cap, hold the phone 15 cm above, tap Run test."
+                        Text(if (classesTrained >= 2) "$classesTrained kinds trained · ${samples.size} samples. Thin layer (1–2 mm) in a dark cap, phone at the same height as training, tap Run test."
                             else "Works now with an educated guess (water %, spoiled, not milk). For higher accuracy, open Training and record your own water, pure milk and 50/50.",
                             color = Palette.muted, fontSize = 13.sp, lineHeight = 18.sp)
                     }
@@ -713,7 +789,7 @@ fun PurityTest(app: AppState, subject: String? = null, fatPct: Double = 3.0, onE
                 collector.offer(listOf(w to sp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(top = 8.dp)) {
-                LegendDot(Color.White, "white paper"); LegendDot(Palette.tint(Color(0xFF7DD3FC)), "cap, filled to the brim")
+                LegendDot(Color.White, "white paper"); LegendDot(Palette.tint(Color(0xFF7DD3FC)), "dark cap, thin layer (1–2 mm)")
             }
             AimCoach(liveRgb, liveWhite, sensors) { aimOk = it }
         }
@@ -1232,11 +1308,15 @@ private fun TrainingPage(
         if (busy != null) FiveStagePanel(phase, busy, ring, stage, liveRgb, sensors)
         else {
             Text("Teach Shuddh your samples", color = Palette.text, fontFamily = Display, fontWeight = FontWeight.Black, fontSize = 20.sp)
-            Text("Use a DARK cap (black, blue or red) filled to the brim, on WHITE paper in the white box. Hold the phone 15 cm above, tap a kind. Record 3 of each kind, re-pouring each time.", color = Palette.muted, fontSize = 13.sp, lineHeight = 18.sp)
+            Text("Use a DARK cap (black, blue or red) with just a THIN layer of liquid — 1–2 mm, enough to cover the bottom. In a thin layer watered milk lets the dark cap show through, pure milk doesn't. White paper in the white box; keep the same height every time. Record 3 of each kind.", color = Palette.muted, fontSize = 13.sp, lineHeight = 18.sp)
             status?.let { Text(it, color = if (it.startsWith("Not saved") || it.startsWith("Saved, but")) Palette.amber else Palette.accent, fontSize = 13.sp, lineHeight = 18.sp) }
             PurityTrain.separation(samples, "water", "pure_milk")?.let { sep ->
                 if (sep < 3) Text("⚠ Water and pure milk look almost the same to the camera (${fmt(sep)}σ apart). Use a DARK cap (black/blue/red) on WHITE paper — water must look dark, milk white. Then re-record both.", color = Palette.amber, fontSize = 12.sp, lineHeight = 16.sp)
                 else Text("✓ Water and milk are clearly different to the camera (${fmt(sep)}σ apart).", color = Palette.accent, fontSize = 12.sp)
+            }
+            PurityTrain.separation(samples, "pure_milk", "half")?.let { sep ->
+                if (sep < 2.5) Text("⚠ Pure milk and 50/50 look almost the same (${fmt(sep)}σ apart) — the layer is too thick. Use only 1–2 mm of liquid in the dark cap, then re-record both.", color = Palette.amber, fontSize = 12.sp, lineHeight = 16.sp)
+                else Text("✓ Pure milk and 50/50 are distinguishable (${fmt(sep)}σ apart).", color = Palette.accent, fontSize = 12.sp)
             }
             val few = labels.filter { lb -> samples.count { it.label == lb.id } in 1..2 }
             if (few.isNotEmpty()) Text("Add more samples for: ${few.joinToString { it.title }} (3 each recommended).", color = Palette.muted, fontSize = 12.sp, lineHeight = 16.sp)
@@ -1263,8 +1343,8 @@ private fun TrainingPage(
                             }
                         }
                     }
-                    val bad = mine.count { PurityTrain.captureProblem(it.f) != null }
-                    if (bad > 0) Text("⚠ $bad capture${if (bad > 1) "s" else ""} may have a setup issue", color = Palette.amber, fontSize = 10.sp, lineHeight = 13.sp)
+                    val bad = mine.count { PurityTrain.aimProblem(it.f, it.label) != null }
+                    if (bad > 0) Text("⛔ $bad bad capture${if (bad > 1) "s" else ""} (aim error) — ignored. Delete ✕ and retake with a dark cap.", color = Palette.red, fontSize = 10.sp, lineHeight = 13.sp)
                     Text(if (lb.safe) "safe" else "not safe", color = if (lb.safe) Palette.muted else Palette.red, fontSize = 10.sp)
                 }
             }

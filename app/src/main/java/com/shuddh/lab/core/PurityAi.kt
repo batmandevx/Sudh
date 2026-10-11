@@ -28,7 +28,7 @@ object PurityAi {
         photo?.let { sb.append("\nPHOTO OF THE SAMPLE (described by the phone): ").append(it).append("\n") }
         sb.append("Hints: pure milk is opaque white with equal R,G,B near 0.85-0.95; watered milk turns thinner and bluish (B above R) and darker under torch; plain water is clear so the cap/paper shows through; spoiled milk is yellowish and lumpy (high tex).\n")
         sb.append("\nWhat is the test sample, is it safe, and roughly how much water is in it? Reply in exactly one line:\n")
-        sb.append("CLASS=<one of: ${samples.map { it.label }.distinct().joinToString("|")}>; SAMPLE=<water|milk|diluted milk|adulterated|other>; WATER_PCT=<0-100>; SAFE=<yes|no>; CONFIDENCE=<0-100>; REASON=<max 15 words>")
+        sb.append("CLASS=<one of: ${samples.map { it.label }.distinct().joinToString("|")}>; SAMPLE=<water|milk|diluted milk|spoiled milk|adulterated|other>; WATER_PCT=<0-100>; SAFE=<yes|no>; CONFIDENCE=<0-100>; REASON=<max 15 words>")
         return sb.toString()
     }
 
@@ -40,7 +40,7 @@ object PurityAi {
         val safe = field("SAFE")?.lowercase()?.let { if (it.startsWith("y")) true else if (it.startsWith("n")) false else null }
         val conf = field("CONFIDENCE")?.let { Regex("\\d+(\\.\\d+)?").find(it)?.value?.toDoubleOrNull() }?.coerceIn(0.0, 100.0)
         val reason = field("REASON") ?: t.lines().firstOrNull { it.isNotBlank() }?.take(120).orEmpty()
-        val sample = field("SAMPLE")?.lowercase()?.let { v -> listOf("diluted milk", "adulterated", "water", "milk", "other").firstOrNull { v.contains(it) } }
+        val sample = field("SAMPLE")?.lowercase()?.let { v -> listOf("diluted milk", "spoiled milk", "adulterated", "water", "milk", "other").firstOrNull { v.contains(it) } }
         val wp = field("WATER_PCT")?.let { Regex("\\d+(\\.\\d+)?").find(it)?.value?.toDoubleOrNull() }?.coerceIn(0.0, 100.0)
         return Opinion(cls, safe, conf, reason, text, sample, wp)
     }
@@ -65,5 +65,19 @@ object SamplePhoto {
         sensor == null -> null
         ai == null || kotlin.math.abs(ai - sensor) > 30 -> sensor
         else -> 0.8 * sensor + 0.2 * ai
+    }
+}
+
+/** Prompt for the no-training mode: the physics estimate + photo description, the model checks it. */
+fun purityGuessPrompt(test: Map<String, Double>, photo: String, physics: PurityGuess.Guess): String {
+    fun f3(v: Double?) = v?.let { String.format(java.util.Locale.US, "%.3f", it) } ?: "?"
+    return buildString {
+        append("You are a food-safety lab assistant checking a liquid measured by a phone camera (sample in a dark cap on white paper, torch on).\n")
+        append("Reflectance vs white paper (0..1): torch R ${f3(test["flash_r"])} G ${f3(test["flash_g"])} B ${f3(test["flash_b"])}; room light R ${f3(test["amb_r"])} G ${f3(test["amb_g"])} B ${f3(test["amb_b"])}; surface texture ${f3(test["tex"])}.\n")
+        append("Reference readings on this phone (torch): water ≈ 0.00 (clear), 50/50 milk-water ≈ 0.55, pure toned milk ≈ 0.79 (slightly bluish), spoiled milk R 1.10 G 1.02 B 0.66 (yellow, lumpy), honey R 0.98 G 0.48 B 0.09, juice R 0.86 G 0.12 B 0.08.\n")
+        append("Physics model estimate: ${physics.title}${physics.waterPct?.let { ", about ${it.toInt()}% water" } ?: ""} (${physics.confidence.toInt()}% sure).\n")
+        append("PHOTO: $photo\n")
+        append("Decide independently. Reply in exactly one line:\n")
+        append("SAMPLE=<water|milk|diluted milk|spoiled milk|adulterated|other>; WATER_PCT=<0-100>; CONFIDENCE=<0-100>; REASON=<max 15 words>")
     }
 }
