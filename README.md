@@ -66,6 +66,17 @@ and an honest "how sure we are" on every verdict.
 
 ## 🌍 The problem
 
+<div align="center">
+
+[![Watch: Adulteration Alert, 30 seconds](docs/media/adulteration_alert_poster.jpg)](https://github.com/batmandevx/Sudh/raw/main/docs/media/adulteration_alert_30s.mp4)
+
+**▶ [Watch the 30-second Adulteration Alert](https://github.com/batmandevx/Sudh/raw/main/docs/media/adulteration_alert_30s.mp4)** (MP4, 18 MB)
+
+</div>
+
+> **February–March 2026, Rajamahendravaram, Andhra Pradesh:** 16 people died and many more needed dialysis after drinking milk from one local dairy that was contaminated with ethylene glycol, a toxic coolant. The vendor was arrested and the dairy sealed.<br/>
+> Sources: [The South First](https://thesouthfirst.com/topright/death-toll-soars-to-16-in-andhra-milk-adulteration-tragedy-linked-to-ethylene-glycol) · [ETV Bharat](https://www.etvbharat.com/en/state/andhra-pradesh-adulterated-milk-case-vendor-knowingly-sold-contaminated-milk-enn26022502084) · [Siasat](https://www.siasat.com/death-toll-rises-to-16-in-andhra-milk-adulteration-case-3438886/amp/)
+
 Food adulteration in India isn't rare. It's routine, and families have no practical way to check.
 
 | | |
